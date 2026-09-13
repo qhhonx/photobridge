@@ -166,6 +166,15 @@ permission changes, receiver replacement and simultaneous incremental discovery.
 
 ### Current historical-import implementation
 
+Preparation and eligible transfer jobs use capture time, newest first, on both
+iOS and macOS. Pending queues from earlier versions are backfilled in batches of
+200 using PhotoKit metadata only; original files are not downloaded for sorting.
+Incremental discovery also orders its pending identifiers by capture time.
+Equal timestamps use source identifiers as a stable tie-breaker; unavailable dates
+sort last. Retry deadlines and active uploads are preserved, so concurrent
+completion order can differ from scheduling order. Already submitted OS uploads
+are not cancelled to make room for a newly discovered photo.
+
 Apple backup preferences now offer Import existing photos, Pause/Resume library
 scan and Scan library again. The backup overview shows scan state and pending
 preparation separately from transfer receipts. Global backup pause also pauses

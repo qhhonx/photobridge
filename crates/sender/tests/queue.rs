@@ -61,6 +61,40 @@ fn status(j: &Job, received: bool) -> AssetStatus {
         }],
     }
 }
+
+#[test]
+fn capture_order_survives_restart_and_keeps_running_and_delayed_jobs() {
+    let t = Temp::new();
+    let mut s = Sender::open(&t.0).unwrap();
+    let mut ids = Vec::new();
+    for (name, date) in [
+        ("old", Some(100)),
+        ("new", Some(900)),
+        ("middle", Some(500)),
+        ("unknown", None),
+    ] {
+        let mut a = asset();
+        a.source_id = name.into();
+        if let Some(date) = date {
+            a.metadata.insert("created_at_ms".into(), date.to_string());
+        }
+        let sources = BTreeMap::from([(a.resources[0].sha256.clone(), "resource".into())]);
+        ids.push(s.enqueue("receiver-1", a, sources).unwrap().id);
+    }
+    drop(s);
+    let mut s = Sender::open(&t.0).unwrap();
+    let newest = s.claim("receiver-1", 10).unwrap().unwrap();
+    assert_eq!(newest.id, ids[1]);
+    s.fail(&newest.attempt(), Failure::Network, 10).unwrap();
+    let retry_at = s.job(newest.id).unwrap().next_attempt_at;
+    let middle = s.claim("receiver-1", 10).unwrap().unwrap();
+    assert_eq!(middle.id, ids[2]);
+    // An eligible retry follows capture order; an existing upload is not reset.
+    assert_eq!(s.claim("receiver-1", retry_at).unwrap().unwrap().id, ids[1]);
+    assert_eq!(s.job(middle.id).unwrap().state, JobState::Running);
+    assert_eq!(s.claim("receiver-1", retry_at).unwrap().unwrap().id, ids[0]);
+    assert_eq!(s.claim("receiver-1", retry_at).unwrap().unwrap().id, ids[3]);
+}
 #[test]
 fn restart_resumes_and_keeps_pause_progress_and_dedupe() {
     let t = Temp::new();

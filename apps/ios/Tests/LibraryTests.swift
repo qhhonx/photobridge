@@ -7,6 +7,24 @@ import XCTest
 
 /// Run only on a disposable simulator; fixtures remain available for UI checks.
 @MainActor final class LibraryTests: XCTestCase {
+  func testBackupCaptureOrderIgnoresIdentifierAndSelectionOrder() async throws {
+    #if !targetEnvironment(simulator)
+      throw XCTSkip("Synthetic library acceptance is simulator-only")
+    #endif
+    let access = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+    guard access == .authorized else { throw XCTSkip("Photos authorization required") }
+    let ids = try await createPhotos(count: 8, date: Date())
+    let shuffled = [ids[3], ids[0], ids[6], ids[2], ids[7], ids[1], ids[5], ids[4]]
+    let dates = await PhotoBackupOrder.captureDates(shuffled)
+    XCTAssertEqual(dates.count, ids.count)
+    let ordered = shuffled.sorted {
+      PhotoBackupOrder.precedes($0, dates[$0] ?? Int64.min, $1, dates[$1] ?? Int64.min)
+    }
+    XCTAssertEqual(ordered, Array(ids.reversed()))
+    XCTAssertTrue(PhotoBackupOrder.precedes("a", 1, "b", 1))
+    XCTAssertTrue(PhotoBackupOrder.precedes("new", 1, "missing", Int64.min))
+  }
+
   func testSelectionAcrossPaginationInsertionAndViewRecreation() async throws {
     #if !targetEnvironment(simulator)
       throw XCTSkip("Synthetic library acceptance is simulator-only")

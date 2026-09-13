@@ -414,7 +414,13 @@ enum Bridge {
       message = NSLocalizedString("photos_permission_needed", comment: "")
       return false
     }
-    let assets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: photoLibraryFetchOptions())
+    let options = photoLibraryFetchOptions()
+    options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+    let assets = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: options)
+    let orderedAssets = (0..<assets.count).map { assets.object(at: $0) }.sorted {
+      PhotoBackupOrder.precedes($0.localIdentifier, PhotoBackupOrder.timestamp($0.creationDate),
+        $1.localIdentifier, PhotoBackupOrder.timestamp($1.creationDate))
+    }
     do { try await scheduleBurstSiblings(of: assets, receiver: target.receiverID) }
     catch { message = error.localizedDescription; return false }
     if assets.count != identifiers.count {
@@ -432,12 +438,12 @@ enum Bridge {
     for index in 0..<assets.count {
       guard !Task.isCancelled, pairing?.receiverID == target.receiverID else { return false }
       if paused && !requestAuthorization { return false }
-      let sourceID = assets.object(at: index).localIdentifier
+      let sourceID = orderedAssets[index].localIdentifier
       let folder = root.appendingPathComponent("exports/" + UUID().uuidString, isDirectory: true)
       var retained = false
       defer { if !retained { try? FileManager.default.removeItem(at: folder) } }
       do {
-        let asset = assets.object(at: index)
+        let asset = orderedAssets[index]
         // Check the source revision before downloading originals, including
         // manual selection and metadata replay after a historical-scan restart.
         let existingData = try await Bridge.call(["op": "source_states", "receiver_id": target.receiverID,
@@ -568,12 +574,30 @@ enum Bridge {
       await refreshStorage()
     } catch { storageError = error.localizedDescription }
   }
+  private var orderingPendingSources = false
   func processPendingImports() async {
-    guard ready, !importing, let pairing else { return }
+    guard ready, !importing, !orderingPendingSources, let pairing else { return }
+    orderingPendingSources = true
+    defer { orderingPendingSources = false }
     do {
-      let data = try await Bridge.call(["op": "pending_sources", "receiver_id": pairing.receiverID])
-      let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-      pendingImports = result?["count"] as? Int ?? 0
+      // Persist capture dates once, including existing queues, before choosing a
+      // batch. Read metadata off-main; never download originals for ordering.
+      var result: [String: Any]?
+      while true {
+        guard !Task.isCancelled, self.pairing?.receiverID == pairing.receiverID else { return }
+        let data = try await Bridge.call(["op": "pending_sources", "receiver_id": pairing.receiverID])
+        guard self.pairing?.receiverID == pairing.receiverID else { return }
+        result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        pendingImports = result?["count"] as? Int ?? 0
+        let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        guard !paused, access == .authorized || access == .limited else { return }
+        let unordered = result?["unordered"] as? [String] ?? []
+        if unordered.isEmpty { break }
+        let dates = await PhotoBackupOrder.captureDates(unordered)
+        try Task.checkCancellation()
+        _ = try await Bridge.call(["op": "source_dates", "receiver_id": pairing.receiverID,
+          "dates": unordered.map { [$0, dates[$0] ?? Int64.min] as [Any] }])
+      }
       if pendingImports == 0 { preparationReason = nil }
       if let storage, storage.export_allowance == 0 {
         preparationReason = storage.reason

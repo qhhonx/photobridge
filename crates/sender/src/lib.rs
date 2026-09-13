@@ -309,7 +309,7 @@ impl Sender {
             return Ok(None);
         }
         let tx = self.conn.transaction().map_err(db)?;
-        let id: Option<i64> = tx.query_row("SELECT id FROM jobs WHERE receiver_id=?1 AND (state='queued' OR (state='waiting' AND next_attempt_at<=?2)) ORDER BY next_attempt_at,id LIMIT 1",params![receiver,now],|r|r.get(0)).optional().map_err(db)?;
+        let id: Option<i64> = tx.query_row("SELECT id FROM jobs WHERE receiver_id=?1 AND (state='queued' OR (state='waiting' AND next_attempt_at<=?2)) ORDER BY CAST(json_extract(manifest,'$.metadata.created_at_ms') AS INTEGER) DESC,json_extract(manifest,'$.source_id'),id LIMIT 1",params![receiver,now],|r|r.get(0)).optional().map_err(db)?;
         if let Some(id) = id {
             tx.execute("UPDATE jobs SET state='running',generation=generation+1,attempts=attempts+1,error_code=NULL,native_task_id=NULL WHERE id=?1",[id]).map_err(db)?;
         }

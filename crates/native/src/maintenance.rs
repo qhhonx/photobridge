@@ -4,6 +4,57 @@ use super::*;
 pub use history::HistoryAction;
 use rusqlite::{params, Connection};
 
+#[cfg(test)]
+mod ordering_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_pending_queue_is_backfilled_without_losing_retries_or_membership() {
+        let root = std::env::temp_dir().join(format!("photobridge-order-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let conn = Connection::open(root.join("maintenance.sqlite3")).unwrap();
+        conn.execute_batch("CREATE TABLE pending_sources(receiver TEXT NOT NULL,source TEXT NOT NULL,retry_at INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(receiver,source));
+            INSERT INTO pending_sources VALUES('a','old',0),('a','new',0),('a','retry',9223372036854775807),('b','other',0);").unwrap();
+        drop(conn);
+        let m = Maintenance::open(&root).unwrap();
+        assert_eq!(
+            m.pending("a").unwrap()["unordered"]
+                .as_array()
+                .unwrap()
+                .len(),
+            3
+        );
+        m.source_dates(
+            "a",
+            &[
+                ("old".into(), 100),
+                ("new".into(), 900),
+                ("retry".into(), 1000),
+            ],
+        )
+        .unwrap();
+        drop(m);
+        let m = Maintenance::open(&root).unwrap();
+        assert_eq!(m.pending("a").unwrap()["sources"], json!(["new", "old"]));
+        assert_eq!(m.pending("a").unwrap()["count"], 3);
+        assert_eq!(m.pending("a").unwrap()["unordered"], json!([]));
+        assert_eq!(m.pending("b").unwrap()["unordered"], json!(["other"]));
+        m.conn
+            .execute(
+                "UPDATE pending_sources SET retry_at=0 WHERE receiver='a' AND source='retry'",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            m.pending("a").unwrap()["sources"],
+            json!(["retry", "new", "old"])
+        );
+        drop(m);
+        fs::remove_dir_all(root).unwrap();
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Settings {
@@ -95,6 +146,17 @@ impl Maintenance {
           CREATE TABLE IF NOT EXISTS history_members(receiver TEXT NOT NULL, source TEXT NOT NULL, revision TEXT NOT NULL, PRIMARY KEY(receiver,source));
           CREATE TABLE IF NOT EXISTS pending_sources(receiver TEXT NOT NULL, source TEXT NOT NULL, retry_at INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(receiver,source));
           CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, ts INTEGER NOT NULL, code TEXT NOT NULL, job_id INTEGER, amount INTEGER);") .map_err(database)?;
+        let has_capture_date: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM pragma_table_info('pending_sources') WHERE name='created_at_ms')",
+            [], |r| r.get(0)).map_err(database)?;
+        if !has_capture_date {
+            conn.execute(
+                "ALTER TABLE pending_sources ADD COLUMN created_at_ms INTEGER",
+                [],
+            )
+            .map_err(database)?;
+        }
+        conn.execute("CREATE INDEX IF NOT EXISTS pending_capture_order ON pending_sources(receiver,created_at_ms DESC,source)", []).map_err(database)?;
         let has_context: bool = conn
             .query_row(
                 "SELECT EXISTS(SELECT 1 FROM pragma_table_info('events') WHERE name='context')",
@@ -255,13 +317,36 @@ impl Maintenance {
                 |r| r.get(0),
             )
             .map_err(database)?;
-        let mut s=self.conn.prepare("SELECT source FROM pending_sources WHERE receiver=?1 AND retry_at<=?2 ORDER BY rowid LIMIT 5").map_err(database)?;
+        let mut s=self.conn.prepare("SELECT source FROM pending_sources WHERE receiver=?1 AND retry_at<=?2 ORDER BY created_at_ms DESC,source LIMIT 5").map_err(database)?;
         let ids = s
             .query_map(params![receiver, now()], |r| r.get::<_, String>(0))
             .map_err(database)?
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(database)?;
-        Ok(json!({"count":count,"sources":ids}))
+        let mut query = self.conn.prepare("SELECT source FROM pending_sources WHERE receiver=?1 AND created_at_ms IS NULL ORDER BY rowid LIMIT 200").map_err(database)?;
+        let unordered = query
+            .query_map([receiver], |r| r.get::<_, String>(0))
+            .map_err(database)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(database)?;
+        Ok(json!({"count":count,"sources":ids,"unordered":unordered}))
+    }
+    /// Metadata-only backfill also orders queues created by older app versions.
+    /// Missing or inaccessible dates sort last; no source membership is removed.
+    pub fn source_dates(&self, receiver: &str, dates: &[(String, i64)]) -> Result<()> {
+        if dates.len() > 200 {
+            return Err(Error::Invalid("source dates".into()));
+        }
+        let tx = self.conn.unchecked_transaction().map_err(database)?;
+        for (source, date) in dates {
+            tx.execute(
+                "UPDATE pending_sources SET created_at_ms=?3 WHERE receiver=?1 AND source=?2",
+                params![receiver, source, date],
+            )
+            .map_err(database)?;
+        }
+        tx.commit().map_err(database)?;
+        Ok(())
     }
     pub fn source_result(&self, receiver: &str, source: &str, complete: bool) -> Result<()> {
         if complete {
@@ -773,7 +858,10 @@ mod tests {
             m.source_result("a", "two", true).unwrap();
         }
         let mut m = Maintenance::open(&t.0).unwrap();
-        assert_eq!(m.pending("a").unwrap(), json!({"count":1,"sources":[]}));
+        assert_eq!(
+            m.pending("a").unwrap(),
+            json!({"count":1,"sources":[],"unordered":["one"]})
+        );
         assert_eq!(m.pending("b").unwrap()["sources"], json!(["one"]));
         let inputs = vec![("one".into(), "1".into()), ("two".into(), "1".into())];
         assert_eq!(

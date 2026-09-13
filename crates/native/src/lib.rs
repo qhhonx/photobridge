@@ -448,6 +448,10 @@ enum Command {
     PendingSources {
         receiver_id: String,
     },
+    SourceDates {
+        receiver_id: String,
+        dates: Vec<(String, i64)>,
+    },
     SourceResult {
         receiver_id: String,
         source: String,
@@ -829,6 +833,14 @@ fn dispatch(command: Command) -> Result<Value> {
             .lock()
             .map_err(lock)?
             .pending(&receiver_id),
+        Command::SourceDates { receiver_id, dates } => {
+            sender()?
+                .maintenance
+                .lock()
+                .map_err(lock)?
+                .source_dates(&receiver_id, &dates)?;
+            Ok(json!({}))
+        }
         Command::SourceResult {
             receiver_id,
             source,

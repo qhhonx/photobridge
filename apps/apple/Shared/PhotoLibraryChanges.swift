@@ -7,6 +7,7 @@ import Photos
   struct Pending: Codable {
     let id: String
     var nextAttempt: Date = .distantPast
+    var createdAtMS: Int64? = nil
   }
   struct State: Codable {
     var enabled = false
@@ -113,7 +114,7 @@ import Photos
             next.pending.removeAll { changes.2.contains($0.id) }
             let known = Set(next.pending.map(\.id))
             next.pending.append(
-              contentsOf: changes.1.subtracting(known).sorted().map { Pending(id: $0) })
+              contentsOf: changes.1.subtracting(known).map { Pending(id: $0) })
             next.token = token
             try persist(next)
           }
@@ -124,6 +125,21 @@ import Photos
           try persist(next)
           model.message = NSLocalizedString("error_history_unavailable", comment: "")
         }
+      }
+      // Resolve new and legacy pending identifiers once; identifier order has
+      // no relationship to capture time. Keep retry deadlines during reordering.
+      let missingDates = state.pending.filter { $0.createdAtMS == nil }.map(\.id)
+      if !missingDates.isEmpty {
+        let dates = await PhotoBackupOrder.captureDates(missingDates)
+        guard version == revision, !Task.isCancelled else { return }
+        var next = state
+        for index in next.pending.indices where next.pending[index].createdAtMS == nil {
+          next.pending[index].createdAtMS = dates[next.pending[index].id] ?? Int64.min
+        }
+        next.pending.sort {
+          PhotoBackupOrder.precedes($0.id, $0.createdAtMS ?? Int64.min, $1.id, $1.createdAtMS ?? Int64.min)
+        }
+        try persist(next)
       }
       // Small bounded batches. A crash before removing an identifier safely
       // re-exports it; the Rust asset identity prevents duplicate transfer.
