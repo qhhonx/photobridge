@@ -47,6 +47,29 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
   private var reconciled = false
   private var serialWork: Task<Void, Never>?
   private var lastDecision: String?
+  private var progressTracker = TaskProgressTracker()
+  private var progressPublication: Task<Void, Never>?
+  private func publishProgress() {
+    guard progressPublication == nil else { return }
+    progressPublication = Task {
+      try? await Task.sleep(nanoseconds: 150_000_000)
+      let jobs = progressTracker.jobs
+      BackupModel.shared.transferProgress = jobs
+      waitingForNetwork = !jobs.isEmpty && jobs.values.allSatisfy(\.waitingForNetwork)
+      BackupModel.shared.waitingForNetwork = waitingForNetwork
+      progressPublication = nil
+    }
+  }
+  private func observeProgress(_ task: URLSessionTask) {
+    guard task.state != .completed, task.countOfBytesSent > 0,
+      let description = task.taskDescription,
+      let attempt = try? JSONDecoder().decode(NativeAttempt.self, from: Data(description.utf8)) else { return }
+    progressTracker.update(taskID: task.taskIdentifier, attempt: attempt,
+      sent: task.countOfBytesSent, expected: task.countOfBytesExpectedToSend,
+      phase: phase(task.originalRequest) ?? "manifest",
+      baseline: BackupModel.shared.jobs.first { $0.id == attempt.jobID }?.confirmedBytes ?? 0)
+    publishProgress()
+  }
   private lazy var session: URLSession = {
     #if os(iOS)
       let configuration = URLSessionConfiguration.background(withIdentifier: Self.identifier)
@@ -206,6 +229,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     guard model.ready else { return }
     do {
       let tasks = await session.allTasks
+      for task in tasks { observeProgress(task) }
       let live = tasks.map { String($0.taskIdentifier) } + finishingTasks.map(String.init)
       var orphans: [String] = []
       if !reconciled {
@@ -337,8 +361,6 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
       }
 
       await BackupModel.shared.open()
-      self.waitingForNetwork = false
-      BackupModel.shared.uploadingJobID = nil
       var context: [String: Any] = ["execution": self.execution, "http_status": code]
       context["phase"] = self.phase(task.originalRequest)
       context["system_error"] = nsError?.code
@@ -371,6 +393,9 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
       await self.record(error == nil ? "request_completed" : "request_failed", jobID: attempt?.jobID, context: context)
       await self.pump()
       await BackupModel.shared.refresh()
+      // Keep the last progress through receipt processing; clear only this task.
+      self.progressTracker.remove(taskID: id)
+      self.publishProgress()
       BackupModel.shared.scheduleBackgroundWork()
     }
   }
@@ -381,12 +406,21 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     guard let description = task.taskDescription,
       let attempt = try? JSONDecoder().decode(NativeAttempt.self, from: Data(description.utf8))
     else { return }
-    BackupModel.shared.uploadingJobID = attempt.jobID
-    waitingForNetwork = false
+    progressTracker.update(taskID: task.taskIdentifier, attempt: attempt,
+      sent: totalBytesSent, expected: totalBytesExpectedToSend,
+      phase: phase(task.originalRequest) ?? "manifest",
+      baseline: BackupModel.shared.jobs.first { $0.id == attempt.jobID }?.confirmedBytes ?? 0)
+    publishProgress()
   }
   func urlSession(_ session: URLSession, taskIsWaitingForConnectivity task: URLSessionTask) {
-    waitingForNetwork = true
-    BackupModel.shared.uploadingJobID = nil
+    if let description = task.taskDescription,
+      let attempt = try? JSONDecoder().decode(NativeAttempt.self, from: Data(description.utf8)) {
+      progressTracker.update(taskID: task.taskIdentifier, attempt: attempt,
+        sent: task.countOfBytesSent, expected: task.countOfBytesExpectedToSend,
+        phase: phase(task.originalRequest) ?? "manifest", baseline: 0)
+      progressTracker.waiting(taskID: task.taskIdentifier)
+      publishProgress()
+    }
     Task { await self.recordSnapshot("request_waiting_network", tasks: [task]) }
   }
   func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {

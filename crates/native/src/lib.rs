@@ -1070,7 +1070,14 @@ fn dispatch(command: Command) -> Result<Value> {
             Ok(serde_json::to_value(updated)?)
         }
         Command::CheckPairing { pairing } => {
-            let caps = runtime().block_on(async { pairing.client()?.capabilities().await })?;
+            let caps = runtime().block_on(async {
+                tokio::time::timeout(
+                    std::time::Duration::from_secs(5),
+                    pairing.client()?.capabilities(),
+                )
+                .await
+                .map_err(|_| Error::Transport("receiver probe timeout".into()))?
+            })?;
             if caps.version != PROTOCOL_VERSION {
                 return Err(Error::Unsupported("protocol version".into()));
             }

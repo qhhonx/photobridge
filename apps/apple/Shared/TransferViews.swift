@@ -43,7 +43,17 @@ struct AssetThumbnail: View {
 
 struct TransferRow: View {
   let job: BackupJob
-  var uploading: Bool
+  var progress: TransferProgress?
+  private var displayedBytes: UInt64 {
+    guard job.state == "running", let progress else { return job.confirmedBytes }
+    return progress.displayedBytes(confirmed: job.confirmedBytes, total: job.totalBytes)
+  }
+  private var statusKey: String {
+    guard job.state == "running" else { return "state_" + job.state }
+    if progress?.waitingForNetwork == true { return "waiting_for_wifi" }
+    guard let progress, progress.sent > 0 else { return "state_scheduled" }
+    return progress.expected > 0 && progress.sent >= progress.expected ? "state_confirming" : "state_running"
+  }
   var retry: () -> Void
   var body: some View {
     HStack(spacing: 14) {
@@ -64,15 +74,14 @@ struct TransferRow: View {
           }
         }.font(.caption).foregroundStyle(.secondary)
         if job.state != "received" {
-          ProgressView(value: Double(job.confirmedBytes), total: Double(max(1, job.totalBytes)))
+          ProgressView(value: Double(displayedBytes), total: Double(max(1, job.totalBytes)))
         }
         HStack {
           Text(
-            LocalizedStringKey(
-              job.state == "running" && !uploading ? "state_scheduled" : "state_" + job.state))
+            LocalizedStringKey(statusKey))
           Spacer()
           Text(
-            ByteCountFormatter.string(fromByteCount: Int64(job.confirmedBytes), countStyle: .file)
+            ByteCountFormatter.string(fromByteCount: Int64(displayedBytes), countStyle: .file)
               + " / "
               + ByteCountFormatter.string(fromByteCount: Int64(job.totalBytes), countStyle: .file)
           ).monospacedDigit()
@@ -144,7 +153,7 @@ struct TransferList: View {
               ).frame(maxWidth: .infinity).padding(.top, 36)
             }
             ForEach(browser.jobs) { job in
-              TransferRow(job: job, uploading: model.uploadingJobID == job.id) {
+              TransferRow(job: job, progress: model.transferProgress[job.id]) {
                 Task { await model.retry(job.id) }
               }
               Divider()

@@ -76,6 +76,7 @@ import Photos
       scanning = false
       model.updateDiscoveryStatus()
     }
+    guard await model.canPrepareForReceiver() else { return }
     let version = revision
     do {
       if !state.historyUnavailable, let savedToken = state.token {

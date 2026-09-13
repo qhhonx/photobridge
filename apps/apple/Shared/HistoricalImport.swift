@@ -64,6 +64,7 @@ extension BackupModel {
       historicalCursor = nil
       return
     }
+    guard await canPrepareForReceiver() else { return }
     let version = historyControlRevision
     do {
       if historicalCursor?.receiver != target.receiverID || historicalCursor?.run != status.run {

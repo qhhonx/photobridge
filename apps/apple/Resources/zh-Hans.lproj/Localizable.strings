@@ -293,3 +293,6 @@
 "updates_check" = "检查更新…";
 "updates_mac_note" = "安装前会校验更新签名。此测试版尚未经过 Apple 公证。";
 "official_website" = "官方网站";
+
+"error_receiver_unavailable" = "等待局域网接收端恢复，已暂停准备照片。";
+"state_confirming" = "等待接收端确认";

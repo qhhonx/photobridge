@@ -1,11 +1,12 @@
-# Beta 6
+# Beta 7
 
-- Prepare and schedule Apple photo backups by capture time, newest first.
-- Automatically reorder existing pending photos using metadata, without downloading originals again.
-- Correct incremental discovery and batch export ordering on both iPhone and Mac.
-- Preserve active transfers, completed receipts, pairings and retry deadlines. Concurrent transfers may still finish in a different order.
+- Pause photo scanning and original preparation when the sender is on cellular or cannot reach its paired receiver. Resume after the receiver is verified again.
+- Show live per-task upload progress without treating sent bytes as a receiver receipt.
+- Keep concurrent upload status independent, avoiding repeated switches between transmitting and system scheduling.
+- Show a separate confirmation stage after sending finishes, and limit progress UI updates to avoid excessive redraws.
 
-This release fixes backup ordering. iOS background scheduling is unchanged.
+Existing pairings, pending sources, receipts and manual pause settings are preserved.
+Mac and iOS share these fixes. iOS background execution remains scheduled by the system.
 
 Mac requires Apple Silicon and macOS 14+. Android requires arm64 and Android 10+.
 iOS 17+ is available from source. The Mac beta is not Apple-notarized.

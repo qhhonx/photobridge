@@ -90,7 +90,25 @@ enum Bridge {
   @Published var discoveryPending = 0
   @Published var historyUnavailable = false
   @Published var waitingForNetwork = false
-  @Published var uploadingJobID: Int64?
+  @Published var transferProgress: [Int64: TransferProgress] = [:]
+  @Published var receiverUnavailable = false
+  private var activeExport: BoundedExportWriter?
+  private lazy var availability = ReceiverAvailability(changed: { [weak self] in
+    self?.receiverUnavailable = true
+    self?.activeExport?.cancel()
+  })
+  func canPrepareForReceiver() async -> Bool {
+    guard !paused, let target = pairing else { return false }
+    let available = await availability.check(target)
+    guard pairing?.receiverID == target.receiverID, pairing?.endpoint == target.endpoint else { return false }
+    let recovered = receiverUnavailable && available
+    receiverUnavailable = !available
+    if recovered {
+      _ = try? await Bridge.call(["op": "recover_connection", "receiver_id": target.receiverID])
+    }
+    if !available { activeExport?.cancel() }
+    return available && !paused
+  }
   @Published var importingSourceID: String?
   @Published var exportProgress: Double?
   @Published var storage: StorageSnapshot?
@@ -143,6 +161,7 @@ enum Bridge {
   private func initialize() async {
     guard !opened else { return }
     opened = true
+    _ = availability // Observe connectivity before asynchronous startup completes.
     do {
       try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
       #if os(iOS)
@@ -188,6 +207,7 @@ enum Bridge {
           if Self.canPoll {
             Task { await self.syncDeviceProfile() }
             await refresh()
+            if !paused { _ = await canPrepareForReceiver() }
             await BackgroundTransfer.shared.kick()
             await discoverPhotos()
             await scanHistoricalImport()
@@ -438,6 +458,7 @@ enum Bridge {
     for index in 0..<assets.count {
       guard !Task.isCancelled, pairing?.receiverID == target.receiverID else { return false }
       if paused && !requestAuthorization { return false }
+      guard await canPrepareForReceiver() else { return false }
       let sourceID = orderedAssets[index].localIdentifier
       let folder = root.appendingPathComponent("exports/" + UUID().uuidString, isDirectory: true)
       var retained = false
@@ -487,6 +508,7 @@ enum Bridge {
             "path": destination.path,
           ])
         }
+        guard await canPrepareForReceiver() else { return false }
         var metadata = try await burstFields(for: asset)
         metadata["favorite"] = String(asset.isFavorite)
         if let date = asset.creationDate {
@@ -591,6 +613,7 @@ enum Bridge {
         pendingImports = result?["count"] as? Int ?? 0
         let access = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         guard !paused, access == .authorized || access == .limited else { return }
+        guard await canPrepareForReceiver() else { return }
         let unordered = result?["unordered"] as? [String] ?? []
         if unordered.isEmpty { break }
         let dates = await PhotoBackupOrder.captureDates(unordered)
@@ -610,6 +633,7 @@ enum Bridge {
   }
   var waitingReason: String? {
     if paused { return nil }
+    if receiverUnavailable { return "receiver_unavailable" }
     if let preparationReason { return preparationReason }
     if waitingForNetwork { return "network" }
     if summary.running == 0 && summary.queued == 0 { return summary.waiting_reason }
@@ -621,7 +645,10 @@ enum Bridge {
     guard snapshot.export_allowance > 0 else {
       throw Bridge.Failure(code: snapshot.reason ?? snapshot.limitingReason)
     }
+    guard await canPrepareForReceiver() else { throw Bridge.Failure(code: "receiver_unavailable") }
     let writer = try BoundedExportWriter(url: url, snapshot: snapshot)
+    activeExport = writer
+    defer { activeExport = nil }
     let options = PHAssetResourceRequestOptions()
     options.isNetworkAccessAllowed = true
     options.progressHandler = { progress in Task { @MainActor in self.exportProgress = progress } }

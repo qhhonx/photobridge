@@ -293,3 +293,6 @@
 "updates_check" = "Check for Updates…";
 "updates_mac_note" = "Updates are verified before installation. This beta is not notarized by Apple.";
 "official_website" = "Official website";
+
+"error_receiver_unavailable" = "Waiting for the receiver on your local network. Photo preparation is paused.";
+"state_confirming" = "Waiting for receiver confirmation";
