@@ -35,7 +35,6 @@ struct MacBackupPage: View {
               Spacer()
               Button("backup_choose_library", action: library)
             }
-            BackupReceiptExplanation()
           }
         }
       }.frame(maxWidth: 960, alignment: .leading)

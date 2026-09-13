@@ -95,6 +95,39 @@ fn capture_order_survives_restart_and_keeps_running_and_delayed_jobs() {
     assert_eq!(s.claim("receiver-1", retry_at).unwrap().unwrap().id, ids[0]);
     assert_eq!(s.claim("receiver-1", retry_at).unwrap().unwrap().id, ids[3]);
 }
+
+#[test]
+fn concurrency_setting_persists_and_does_not_cancel_active_tasks() {
+    let t = Temp::new();
+    let mut s = Sender::open(&t.0).unwrap();
+    assert_eq!(s.concurrent_uploads().unwrap(), 4);
+    assert!(s.set_concurrent_uploads(0).is_err());
+    assert!(s.set_concurrent_uploads(5).is_err());
+    s.set_concurrent_uploads(2).unwrap();
+    s.set_bundle_upload("receiver-1", true).unwrap();
+    for n in 0..4 {
+        let mut a = asset();
+        a.source_id = format!("concurrent-{n}");
+        let sources = BTreeMap::from([(a.resources[0].sha256.clone(), "resource".into())]);
+        s.enqueue("receiver-1", a, sources).unwrap();
+    }
+    let first = s.claim_native("receiver-1", 1).unwrap().unwrap();
+    let second = s.claim_native("receiver-1", 1).unwrap().unwrap();
+    assert!(s.claim_native("receiver-1", 1).unwrap().is_none());
+    s.set_concurrent_uploads(1).unwrap();
+    assert_eq!(s.job(first.id).unwrap().state, JobState::Running);
+    assert_eq!(s.job(second.id).unwrap().state, JobState::Running);
+    assert!(s.claim_native("receiver-1", 1).unwrap().is_none());
+    s.acknowledge(&first.attempt(), &status(&first, true))
+        .unwrap();
+    assert!(s.claim_native("receiver-1", 1).unwrap().is_none());
+    s.acknowledge(&second.attempt(), &status(&second, true))
+        .unwrap();
+    assert!(s.claim_native("receiver-1", 1).unwrap().is_some());
+    drop(s);
+    let s = Sender::open(&t.0).unwrap();
+    assert_eq!(s.concurrent_uploads().unwrap(), 1);
+}
 #[test]
 fn restart_resumes_and_keeps_pause_progress_and_dedupe() {
     let t = Temp::new();

@@ -131,8 +131,13 @@ struct TransferList: View {
           ForEach(["preparing", "running", "queued", "waiting", "paused", "failed", "received", "scanned"], id: \.self) {
             Text(LocalizedStringKey($0 == "scanned" ? "history_title" : "state_" + $0)).tag($0)
           }
-        }.frame(maxWidth: 190).accessibilityIdentifier("transfers.filter")
-      }
+        }.pickerStyle(.menu).labelsHidden().fixedSize()
+          .accessibilityIdentifier("transfers.filter")
+      }.frame(maxWidth: .infinity, alignment: .leading)
+      Text(LocalizedStringKey("task_explanation_" + filter))
+        .font(.callout).foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("transfers.explanation")
       if filter == "preparing" || filter == "scanned" {
         SourceBrowser(model: model, history: filter == "scanned")
       } else {
@@ -161,11 +166,11 @@ struct TransferList: View {
             if browser.hasMore {
               Button("load_more_tasks") { Task { await browser.loadMore() } }.padding(.vertical, 20)
             }
-            BackupReceiptExplanation().padding(.bottom, 12)
           }
         }
       }
-    }.task(id: queryID) {
+    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .task(id: queryID) {
       if filter != "preparing" && filter != "scanned" {
         await browser.refresh(filter: filter, receiver: model.pairing?.receiverID)
       }
@@ -221,17 +226,5 @@ struct TransferList: View {
       guard expected == generation, !Task.isCancelled else { return }
       failed = true
     }
-  }
-}
-
-/// Keep explanatory text with its content, above the tab bar and outside row hit targets.
-struct BackupReceiptExplanation: View {
-  var body: some View {
-    Text("receipt_explanation")
-      .font(.footnote).foregroundStyle(.secondary)
-      .lineSpacing(3).fixedSize(horizontal: false, vertical: true)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(.vertical, 12)
-      .accessibilityIdentifier("backup.receipt_explanation")
   }
 }

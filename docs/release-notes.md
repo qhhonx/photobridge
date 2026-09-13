@@ -1,12 +1,13 @@
-# Beta 7
+# Beta 8
 
-- Pause photo scanning and original preparation when the sender is on cellular or cannot reach its paired receiver. Resume after the receiver is verified again.
-- Show live per-task upload progress without treating sent bytes as a receiver receipt.
-- Keep concurrent upload status independent, avoiding repeated switches between transmitting and system scheduling.
-- Show a separate confirmation stage after sending finishes, and limit progress UI updates to avoid excessive redraws.
+- Explain each transfer status at the top of its filtered list.
+- Remove repetitive receipt explanations from the overview and list footers.
+- Align the transfer filter with the trailing content edge on iPhone and Mac.
+- Configure 1–4 concurrent uploads in backup settings. The default stays at 4; lowering the limit lets active tasks finish normally.
+- Allow the native network executor to use the configured transfer capacity. The system and legacy receivers may still run fewer transfers.
 
+Includes beta 7 receiver-aware preparation and live per-task progress fixes.
 Existing pairings, pending sources, receipts and manual pause settings are preserved.
-Mac and iOS share these fixes. iOS background execution remains scheduled by the system.
 
 Mac requires Apple Silicon and macOS 14+. Android requires arm64 and Android 10+.
 iOS 17+ is available from source. The Mac beta is not Apple-notarized.

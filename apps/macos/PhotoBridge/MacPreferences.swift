@@ -29,6 +29,7 @@ struct MacPreferences: View {
             Text("error_history_unavailable").foregroundStyle(.orange)
           }
         } header: { Text("backup_settings") }
+        TransferConcurrencySettings(model: model)
         HistoricalImportSettings(model: model)
         UpdateSettings()
         Section {

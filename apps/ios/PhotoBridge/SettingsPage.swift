@@ -72,6 +72,7 @@ private struct IOSBackupPreferences: View {
       } footer: {
         Text("auto_backup_explanation")
       }
+      TransferConcurrencySettings(model: model)
       HistoricalImportSettings(model: model)
       Section {
         Label("wifi_only", systemImage: "wifi")

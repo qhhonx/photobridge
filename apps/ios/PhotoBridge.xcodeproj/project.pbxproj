@@ -22,6 +22,7 @@
 		6A3AD3FF71E46A09817E485D /* LibraryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E3FA24128C5D2F0E4278B71 /* LibraryPicker.swift */; };
 		7428392F3946378546B57247 /* PhotoBridgeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC9AE7DAEA039904638DDF2B /* PhotoBridgeApp.swift */; };
 		783A31C70C8D7AFD6B9184B8 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF16FB086BA60EA5563663D2 /* HistoricalImport.swift */; };
+		7E1363CD16CB38BFE052E5E6 /* TransferConcurrencySettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB436BC5341FE56BD7B9C57 /* TransferConcurrencySettings.swift */; };
 		8330C6CC81C566749D28D18B /* LibraryGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E8FC97A0DCB12884F3A1CB6 /* LibraryGrid.swift */; };
 		8B350BC90E890538695D4D33 /* ReceiverAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 130B771571A955C8D1DF15A9 /* ReceiverAvailability.swift */; };
 		8C2B8C2D742456E66104B397 /* BackgroundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7E1EFB60D3B5C1F69552369 /* BackgroundTests.swift */; };
@@ -86,6 +87,7 @@
 		9C645F8E34E7662D5BB708A0 /* SettingsPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPage.swift; sourceTree = "<group>"; };
 		A55F18CBC89F32633C952EBB /* BackupHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupHelp.swift; sourceTree = "<group>"; };
 		B0A7070CE7ED93E88AB98A31 /* BackupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupModel.swift; sourceTree = "<group>"; };
+		BBB436BC5341FE56BD7B9C57 /* TransferConcurrencySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferConcurrencySettings.swift; sourceTree = "<group>"; };
 		BE14DA5643198D0ABD284089 /* PhotoLibraryChanges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryChanges.swift; sourceTree = "<group>"; };
 		CC9AE7DAEA039904638DDF2B /* PhotoBridgeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBridgeApp.swift; sourceTree = "<group>"; };
 		CF16FB086BA60EA5563663D2 /* HistoricalImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalImport.swift; sourceTree = "<group>"; };
@@ -116,6 +118,7 @@
 				130B771571A955C8D1DF15A9 /* ReceiverAvailability.swift */,
 				5D8BC3A822470B2C9921278D /* ReceiverDiscovery.swift */,
 				0AD7FA80185F7B4B9B0B9E3B /* StorageModel.swift */,
+				BBB436BC5341FE56BD7B9C57 /* TransferConcurrencySettings.swift */,
 				668BC0973BBAD2F961FE1185 /* TransferProgress.swift */,
 				9AA28F647450C7799E24795F /* TransferViews.swift */,
 			);
@@ -348,6 +351,7 @@
 				5D58182D0CDD04505062D5BC /* ReceiverPage.swift in Sources */,
 				D1BE6BD508468E5EAC2CD235 /* SettingsPage.swift in Sources */,
 				1D6E9C98AEA0FDBA8DB816E8 /* StorageModel.swift in Sources */,
+				7E1363CD16CB38BFE052E5E6 /* TransferConcurrencySettings.swift in Sources */,
 				651746B6853EA949B4B9DA65 /* TransferProgress.swift in Sources */,
 				0AB8EADACB55C990A8321FB1 /* TransferViews.swift in Sources */,
 			);

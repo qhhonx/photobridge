@@ -80,7 +80,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     #endif
     configuration.waitsForConnectivity = true
     configuration.allowsCellularAccess = false
-    configuration.httpMaximumConnectionsPerHost = 1
+    configuration.httpMaximumConnectionsPerHost = 4
     configuration.timeoutIntervalForRequest = 60
     configuration.timeoutIntervalForResource = 3600
     // URLSession delegate callbacks are explicitly delivered on the main queue.

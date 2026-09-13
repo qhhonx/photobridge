@@ -90,6 +90,8 @@ enum Bridge {
   @Published var discoveryPending = 0
   @Published var historyUnavailable = false
   @Published var waitingForNetwork = false
+  @Published var concurrentUploads = 4
+  @Published var savingConcurrency = false
   @Published var transferProgress: [Int64: TransferProgress] = [:]
   @Published var receiverUnavailable = false
   private var activeExport: BoundedExportWriter?
@@ -190,6 +192,7 @@ enum Bridge {
       paused =
         ((try JSONSerialization.jsonObject(with: state)) as? [String: Any])?["paused"] as? Bool
         ?? true
+      concurrentUploads = ((try JSONSerialization.jsonObject(with: state)) as? [String: Any])?["concurrent_uploads"] as? Int ?? 4
       discovery = try PhotoLibraryChanges(root: root)
       try discovery?.matchReceiver(pairing?.receiverID)
       updateDiscoveryStatus()
@@ -271,6 +274,16 @@ enum Bridge {
       // route probe into a permanent transfer failure. Normal retry/QR remains.
       return false
     }
+  }
+  func setConcurrentUploads(_ limit: Int) async {
+    guard !savingConcurrency else { return }
+    savingConcurrency = true
+    defer { savingConcurrency = false }
+    do {
+      _ = try await Bridge.call(["op": "set_transfer_concurrency", "limit": limit])
+      concurrentUploads = limit
+      if !paused { await BackgroundTransfer.shared.kick() }
+    } catch { message = error.localizedDescription }
   }
   func setPaused(_ value: Bool) async {
     do {

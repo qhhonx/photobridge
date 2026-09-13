@@ -544,6 +544,9 @@ enum Command {
         receiver_id: String,
     },
     SenderStatus,
+    SetTransferConcurrency {
+        limit: u32,
+    },
     RecoverConnection {
         receiver_id: String,
     },
@@ -1048,7 +1051,19 @@ fn dispatch(command: Command) -> Result<Value> {
             sender()?.sender.lock().map_err(lock)?.summary(&receiver_id)
         }
         Command::SenderStatus => {
-            Ok(json!({"paused": sender()?.sender.lock().map_err(lock)?.paused()?}))
+            let host = sender()?;
+            let sender = host.sender.lock().map_err(lock)?;
+            Ok(
+                json!({"paused":sender.paused()?, "concurrent_uploads":sender.concurrent_uploads()?}),
+            )
+        }
+        Command::SetTransferConcurrency { limit } => {
+            sender()?
+                .sender
+                .lock()
+                .map_err(lock)?
+                .set_concurrent_uploads(limit)?;
+            Ok(json!({}))
         }
         Command::RecoverConnection { receiver_id } => Ok(
             json!({"requeued": sender()?.sender.lock().map_err(lock)?.recover_connection(&receiver_id)?}),

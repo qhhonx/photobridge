@@ -190,7 +190,6 @@ struct SourceBrowser: View {
           if browser.hasMore {
             Button("load_more_tasks") { Task { await browser.loadMore() } }.padding(.vertical, 20)
           }
-          BackupReceiptExplanation().padding(.bottom, 12)
         }
       }
     }.task(id: queryID) { await refresh() }

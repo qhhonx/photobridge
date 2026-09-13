@@ -296,3 +296,16 @@
 
 "error_receiver_unavailable" = "等待局域网接收端恢复，已暂停准备照片。";
 "state_confirming" = "等待接收端确认";
+
+"transfer_settings" = "传输设置";
+"transfer_concurrency" = "同时传输任务数";
+"transfer_concurrency_note" = "支持 1–4 个任务。调低数量时，已经开始的任务会正常完成。系统和接收端可能减少实际并发数量。";
+"task_explanation_all" = "这里展示全部传输任务及其当前结果，可通过筛选查看某个阶段。";
+"task_explanation_preparing" = "等待从系统图库读取原件并准备传输文件；接收端不可用时会暂停准备。";
+"task_explanation_running" = "已交给系统处理的任务，包括等待开始发送、正在传输和等待接收端确认。";
+"task_explanation_queued" = "文件已准备好，正在等待空闲传输名额和接收端可用。";
+"task_explanation_waiting" = "这些任务遇到了临时问题，会在计划时间自动重试。";
+"task_explanation_paused" = "暂停的任务仍会保留，恢复备份后继续。";
+"task_explanation_failed" = "这些任务需要处理错误后重试，请查看各项的失败原因。";
+"task_explanation_received" = "接收端已经收到文件并完成校验；后续的云端备份是独立步骤。";
+"task_explanation_scanned" = "已检查照片信息，判断是否需要导入历史照片。扫描完成不代表文件已经传输。";

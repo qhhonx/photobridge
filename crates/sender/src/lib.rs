@@ -112,6 +112,7 @@ impl Sender {
             CREATE TABLE IF NOT EXISTS receiver_features(receiver_id TEXT PRIMARY KEY,bundle_upload INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value INTEGER NOT NULL);
             INSERT OR IGNORE INTO settings VALUES('paused',0);
+            INSERT OR IGNORE INTO settings VALUES('concurrent_uploads',4);
             INSERT OR IGNORE INTO settings VALUES('revision',0);
             CREATE TRIGGER IF NOT EXISTS jobs_insert_revision AFTER INSERT ON jobs BEGIN UPDATE settings SET value=value+1 WHERE key='revision'; END;
             CREATE TRIGGER IF NOT EXISTS jobs_update_revision AFTER UPDATE ON jobs BEGIN UPDATE settings SET value=value+1 WHERE key='revision'; END;
@@ -363,6 +364,27 @@ impl Sender {
     }
     /// Queue a bounded window with the OS so later uploads do not need a fresh
     /// application wake-up. Legacy multi-request transfers remain serial.
+    pub fn concurrent_uploads(&self) -> Result<u32> {
+        self.conn
+            .query_row(
+                "SELECT value FROM settings WHERE key='concurrent_uploads'",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(db)
+    }
+    pub fn set_concurrent_uploads(&mut self, limit: u32) -> Result<()> {
+        if !(1..=4).contains(&limit) {
+            return Err(Error::Invalid("concurrent uploads".into()));
+        }
+        self.conn
+            .execute(
+                "UPDATE settings SET value=?1 WHERE key='concurrent_uploads'",
+                [limit],
+            )
+            .map_err(db)?;
+        Ok(())
+    }
     pub fn claim_native(&mut self, receiver: &str, now: i64) -> Result<Option<Job>> {
         let active: u32 = self
             .conn
@@ -372,7 +394,11 @@ impl Sender {
                 |r| r.get(0),
             )
             .map_err(db)?;
-        let window = if self.bundle_upload(receiver)? { 4 } else { 1 };
+        let window = if self.bundle_upload(receiver)? {
+            self.concurrent_uploads()?
+        } else {
+            1
+        };
         if active >= window {
             return Ok(None);
         }

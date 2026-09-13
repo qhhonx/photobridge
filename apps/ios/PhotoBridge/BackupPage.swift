@@ -77,8 +77,6 @@ struct IOSBackupPage: View {
           }
         } header: {
           Text("transfer_tasks")
-        } footer: {
-          BackupReceiptExplanation()
         }
       }
       .safeAreaPadding(.bottom, 12)

@@ -296,3 +296,16 @@
 
 "error_receiver_unavailable" = "Waiting for the receiver on your local network. Photo preparation is paused.";
 "state_confirming" = "Waiting for receiver confirmation";
+
+"transfer_settings" = "Transfers";
+"transfer_concurrency" = "Concurrent uploads";
+"transfer_concurrency_note" = "Choose 1–4 simultaneous tasks. Existing transfers finish normally after lowering this limit. The system and receiver may use fewer connections.";
+"task_explanation_all" = "All transfer tasks and their current results. Open a status filter to see one stage.";
+"task_explanation_preparing" = "Photos waiting for their originals to be read and prepared. Preparation pauses when the receiver is unavailable.";
+"task_explanation_running" = "Tasks handed to the system: waiting to start, sending files, or waiting for receiver confirmation.";
+"task_explanation_queued" = "Files are ready and waiting for an available transfer slot and a reachable receiver.";
+"task_explanation_waiting" = "A temporary problem interrupted these transfers. They will retry automatically at the scheduled time.";
+"task_explanation_paused" = "Paused tasks remain saved. Resume backup to continue.";
+"task_explanation_failed" = "These tasks need attention. Review the error and retry after resolving it.";
+"task_explanation_received" = "The receiver has received and verified these files. Any subsequent cloud backup is a separate step.";
+"task_explanation_scanned" = "Photo information already checked for existing-library import. Scanning does not mean the files have been transferred.";

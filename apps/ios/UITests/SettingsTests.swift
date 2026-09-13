@@ -1,6 +1,37 @@
 import XCTest
 
 final class SettingsTests: XCTestCase {
+  @MainActor func testTaskExplanationsAndTrailingFilter() {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    app.launch()
+    let backup = app.tabBars.buttons.element(boundBy: 1)
+    XCTAssertTrue(backup.waitForExistence(timeout: 20))
+    backup.tap()
+    XCTAssertFalse(app.staticTexts["backup.receipt_explanation"].exists)
+    for state in ["queued", "received"] {
+      let entry = app.buttons["backup.filter.\(state)"]
+      for _ in 0..<8 {
+        if entry.exists && entry.isHittable { break }
+        app.swipeUp()
+      }
+      XCTAssertTrue(entry.isHittable)
+      entry.tap()
+      let explanation = app.staticTexts["transfers.explanation"]
+      XCTAssertTrue(explanation.waitForExistence(timeout: 10))
+      XCTAssertTrue(explanation.label.contains(state == "queued" ? "Files are ready" : "received and verified"))
+      let filter = app.descendants(matching: .any)["transfers.filter"].firstMatch
+      XCTAssertTrue(filter.exists)
+      XCTAssertGreaterThan(filter.frame.maxX, app.frame.maxX - 40)
+      XCTAssertLessThan(filter.frame.maxY, explanation.frame.minY)
+      XCTAssertFalse(app.staticTexts["backup.receipt_explanation"].exists)
+      let screen = XCTAttachment(screenshot: app.screenshot())
+      screen.name = "Task explanation — \(state)"; screen.lifetime = .keepAlways; add(screen)
+      app.navigationBars.buttons.element(boundBy: 0).tap()
+    }
+  }
+
   @MainActor func testBackupPreparationAndScanDrilldowns() {
     continueAfterFailure = false
     let app = XCUIApplication()
