@@ -1,10 +1,12 @@
-# Beta 4
+# Beta 5
 
-- Introduce a new photo-and-bridge app icon across iOS, Mac and Android.
-- Redesign the bilingual website around Wi-Fi photo backup, visual transfer flows and everyday library features.
-- Clarify current sender/receiver support, Pixel storage eligibility and future platform directions.
+- Use the simpler Photo arch icon in the published Mac app.
+- Adapt the Android launcher icon to circular and other system masks, with a full-bleed background and a crisp vector foreground.
+- Add a monochrome icon layer for supported Android themed launchers.
 
-This update retains the existing backup engine and background behavior. iOS preparation remains system-scheduled; continuous locked-screen execution is not guaranteed.
+Existing pairings, transfer queues and backup settings are preserved. The iOS icon
+and backup behavior are unchanged.
+
 Mac requires Apple Silicon and macOS 14+. Android requires arm64 and Android 10+.
 iOS 17+ is available from source. The Mac beta is not Apple-notarized.
 Receiver delivery and Google Photos cloud backup remain separate states.

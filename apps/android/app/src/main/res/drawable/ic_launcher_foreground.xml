@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Photo arch on Android's 108 dp canvas. The rounded 50 dp mark fits
+     inside the central 66 dp safe circle; the system owns the outer mask. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#165DFF" android:fillType="evenOdd"
+        android:pathData="M39,29 L69,29 Q79,29 79,39 L79,69 Q79,79 69,79 L39,79 Q29,79 29,69 L29,39 Q29,29 39,29 Z M33,62 C41,60 47,51 54,51 C61,51 67,60 75,62 L75,39 Q75,33 69,33 L39,33 Q33,33 33,39 Z M42,75 C43,67 48,60 54,60 C60,60 65,67 66,75 Z" />
+    <path android:fillColor="#FF7E64"
+        android:pathData="M71,44 A6,6 0,1 1,59,44 A6,6 0,1 1,71,44 Z" />
+</vector>
