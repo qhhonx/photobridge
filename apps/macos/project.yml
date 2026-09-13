@@ -16,6 +16,9 @@ targets:
         excludes: [Info.plist]
       - path: ../apple/Shared
       - path: ../apple/Resources
+    dependencies:
+      - framework: ../../build/dependencies/sparkle/Sparkle.framework
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.photobridge.mac
@@ -41,6 +44,7 @@ targets:
           export PATH="$HOME/.cargo/bin:$PATH"
           cd "$SRCROOT/../.."
           export MACOSX_DEPLOYMENT_TARGET=14.0
+          ./scripts/fetch-sparkle.sh
           cargo build --locked --release --target aarch64-apple-darwin -p photobridge-native
           cp target/aarch64-apple-darwin/release/libphotobridge_native.a "$BUILT_PRODUCTS_DIR/"
 schemes:

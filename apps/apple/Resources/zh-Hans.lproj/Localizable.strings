@@ -309,3 +309,6 @@
 "task_explanation_failed" = "这些任务需要处理错误后重试，请查看各项的失败原因。";
 "task_explanation_received" = "接收端已经收到文件并完成校验；后续的云端备份是独立步骤。";
 "task_explanation_scanned" = "已检查照片信息，判断是否需要导入历史照片。扫描完成不代表文件已经传输。";
+"menu_open" = "打开 PhotoBridge";
+"menu_quit" = "退出 PhotoBridge";
+"menu_backup_ready" = "备份已就绪";

@@ -8,7 +8,7 @@ import SwiftUI
   @StateObject private var model = BackupModel.shared
   @StateObject private var library = PhotoLibraryModel()
   var body: some Scene {
-    WindowGroup {
+    Window("PhotoBridge", id: "main") {
       MacWorkspace(model: model, library: library)
         .frame(minWidth: 900, minHeight: 620)
         .task { await model.open(); await AppUpdater.shared.start() }
@@ -25,13 +25,20 @@ import SwiftUI
     Settings {
       MacPreferences(model: model).frame(width: 620, height: 580)
     }
+    MenuBarExtra {
+      MacStatusMenu(model: model)
+    } label: {
+      Label("PhotoBridge", systemImage: MacMenuStatus(model: model).symbol)
+    }.menuBarExtraStyle(.menu)
   }
 }
 final class MacAppDelegate: NSObject, NSApplicationDelegate {
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
   func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool
   {
-    if !flag { sender.windows.first?.makeKeyAndOrderFront(nil) }
+    if !flag {
+      sender.windows.first(where: { $0.identifier?.rawValue == "main" })?.makeKeyAndOrderFront(nil)
+    }
     return true
   }
 }

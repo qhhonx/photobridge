@@ -309,3 +309,6 @@
 "task_explanation_failed" = "These tasks need attention. Review the error and retry after resolving it.";
 "task_explanation_received" = "The receiver has received and verified these files. Any subsequent cloud backup is a separate step.";
 "task_explanation_scanned" = "Photo information already checked for existing-library import. Scanning does not mean the files have been transferred.";
+"menu_open" = "Open PhotoBridge";
+"menu_quit" = "Quit PhotoBridge";
+"menu_backup_ready" = "Ready to back up";
