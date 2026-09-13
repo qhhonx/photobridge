@@ -1,0 +1,16 @@
+<resources>
+    <string name="updates_title">App updates</string>
+    <string name="updates_automatic">Automatically check for updates</string>
+    <string name="updates_note">Downloads are verified against the installed app signature. Android asks you to confirm installation.</string>
+    <string name="updates_check">Check for updates</string>
+    <string name="updates_checking">Checking for updates…</string>
+    <string name="updates_current">You have the latest available version.</string>
+    <string name="updates_available">Version %1$s is available.</string>
+    <string name="updates_download">Download update</string>
+    <string name="updates_downloading">Downloading and verifying update…</string>
+    <string name="updates_install">Install downloaded update</string>
+    <string name="updates_permission">Allow PhotoBridge to install apps, then return and tap Install.</string>
+    <string name="updates_confirm">Confirm the update in the Android installer.</string>
+    <string name="updates_failed">Update could not be verified or downloaded. Check your connection and try again. Development builds cannot install a release with a different signing identity.</string>
+    <string name="official_website">Official website</string>
+</resources>

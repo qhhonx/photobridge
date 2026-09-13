@@ -1,0 +1,6 @@
+**
+!site
+!site/**
+site/.env*
+site/.vercel/**
+site/node_modules/**

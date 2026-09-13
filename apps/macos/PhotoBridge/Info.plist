@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>PhotoBridge</string>
+	<key>CFBundleExecutable</key>
+	<string>PhotoBridge</string>
+	<key>CFBundleIconFile</key>
+	<string>PhotoBridge</string>
+	<key>CFBundleIdentifier</key>
+	<string>app.photobridge.mac</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>zh-Hans</string>
+	</array>
+	<key>CFBundleName</key>
+	<string>PhotoBridge</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_photobridge._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Transfer photos directly to your paired PhotoBridge receiver on your local network.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Browse your library and back up selected or newly added original photos to your own receiver.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://photobridge-app.vercel.app/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>s+qs6cjo68nDzWOAs2OB4CyO5WtcjD19KDJ2Pu1fVN4=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
+</dict>
+</plist>

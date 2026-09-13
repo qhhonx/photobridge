@@ -1,0 +1,32 @@
+[workspace]
+members = ["crates/core", "crates/store", "crates/sender", "crates/native", "crates/transport", "crates/pixel", "apps/cli"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+license = "PolyForm-Noncommercial-1.0.0"
+
+[workspace.dependencies]
+photobridge-core = { path = "crates/core" }
+photobridge-store = { path = "crates/store" }
+photobridge-transport = { path = "crates/transport" }
+photobridge-pixel = { path = "crates/pixel" }
+photobridge-sender = { path = "crates/sender" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+thiserror = "2.0"
+rusqlite = { version = "0.40", features = ["bundled"] }
+fs2 = "0.4"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "time", "sync"] }
+axum = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+clap = { version = "4", features = ["derive"] }
+getrandom = "0.4"
+
+rcgen = "0.13"
+axum-server = { version = "0.7", features = ["tls-rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+base64 = "0.22"

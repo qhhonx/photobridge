@@ -1,0 +1,974 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PhotoBridge — Your photos. Beyond one device.</title>
+    <meta
+      name="description"
+      content="Back up photos over Wi-Fi from iPhone or Mac to Android and Pixel. Originals, Live Photos, bursts and automatic backup. Free for noncommercial use. Source available."
+    />
+    <meta name="theme-color" content="#ffffff" />
+    <meta
+      property="og:title"
+      content="PhotoBridge — Your photos. Beyond one device."
+    />
+    <meta
+      property="og:description"
+      content="Wi-Fi photo backup from iPhone and Mac to your Pixel. Keep the moments. Choose the destination."
+    />
+    <meta
+      property="og:image"
+      content="https://photobridge-app.vercel.app/icon.png"
+    />
+    <link rel="icon" href="/icon.png" />
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <div class="nav wrap">
+        <a class="brand" href="#"
+          ><img src="/icon.png" width="38" height="38" alt="" />PhotoBridge</a
+        >
+        <nav aria-label="Main navigation">
+          <a href="#features"
+            ><span data-i18n="nav_features">Why PhotoBridge</span></a
+          ><a href="#how"><span data-i18n="nav_how">How it works</span></a
+          ><a href="https://github.com/qhhonx/photobridge">GitHub ↗</a
+          ><button id="language" aria-label="Change language">中文</button
+          ><a class="button small" href="#download"
+            ><span data-i18n="nav_download">Download</span></a
+          >
+        </nav>
+      </div>
+    </header>
+    <main>
+      <section class="hero wrap">
+        <div class="pill">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path
+              d="M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"
+            />
+            <circle cx="12" cy="19" r=".8" /></svg
+          ><span data-i18n="hero_badge">A little Wi-Fi. A whole library.</span>
+        </div>
+        <h1 data-i18n="hero_title">
+          Your photos.<br /><em>Beyond one device.</em>
+        </h1>
+        <p data-i18n="hero_description" class="lead">
+          From iPhone or Mac to your Pixel, wirelessly.<br />Keep the originals,
+          the motion, and a copy of everything you love.
+        </p>
+        <div class="hero-actions">
+          <a class="button" href="#download"
+            ><span data-i18n="hero_download">Get PhotoBridge</span
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 12h16m-6-6 6 6-6 6" /></svg></a
+          ><a class="text-link" href="#how"
+            ><span data-i18n="hero_how">See how it works</span> ↗</a
+          >
+        </div>
+        <p data-i18n="hero_note" class="hero-note">
+          Free for noncommercial use · No account · No cable
+        </p>
+        <figure class="showcase">
+          <div class="showcase-glow"></div>
+          <div class="desktop">
+            <div class="window-bar">
+              <div class="traffic"><i></i><i></i><i></i></div>
+              <span>PhotoBridge</span
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"
+                />
+                <circle cx="12" cy="19" r=".8" />
+              </svg>
+            </div>
+            <div class="desktop-body">
+              <aside>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="3" y="3" width="18" height="18" rx="4" />
+                  <circle cx="8" cy="8" r="1.5" />
+                  <path d="m3 17 6-6 4 4 3-3 5 5" /></svg
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M18 18A8 8 0 0 1 5 15"
+                  /></svg
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="6" y="2" width="12" height="20" rx="3" />
+                  <path d="M10 18h4" />
+                </svg>
+              </aside>
+              <div class="desktop-gallery">
+                <div class="mock-heading">
+                  <span data-i18n="mock_library">Your library</span
+                  ><small data-i18n="mock_today">Today</small>
+                </div>
+                <div class="photo-grid">
+                  <div class="photo p0"></div>
+                  <div class="photo p1"></div>
+                  <div class="photo p2"></div>
+                  <div class="photo p3"></div>
+                  <div class="photo p4"></div>
+                  <div class="photo p5"></div>
+                </div>
+                <div class="mock-bottom">
+                  <span class="dot"></span
+                  ><span data-i18n="mock_backup">New memories, backed up.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="floating-photo">
+            <div class="photo p4"></div>
+            <span
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="8" />
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 1v1M12 22v1M1 12h1m20 0h1" />
+              </svg>
+              LIVE</span
+            >
+          </div>
+          <div class="wireless-badge">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"
+              />
+              <circle cx="12" cy="19" r=".8" /></svg
+            ><span>Wi-Fi</span>
+            <div class="dots"><i></i><i></i><i></i></div>
+          </div>
+          <div class="phone">
+            <div class="phone-top">
+              <span>9:41</span><i></i
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"
+                />
+                <circle cx="12" cy="19" r=".8" />
+              </svg>
+            </div>
+            <div class="phone-content">
+              <div class="phone-brand">
+                <img src="/icon.png" width="28" height="28" alt="" />PhotoBridge
+              </div>
+              <div class="receiver-pill">
+                <span class="dot"></span
+                ><span data-i18n="mock_receiver">Ready to receive</span>
+              </div>
+              <h3 data-i18n="mock_moments">All those little moments.</h3>
+              <div class="phone-grid">
+                <div class="photo p0"></div>
+                <div class="photo p1"></div>
+                <div class="photo p4"></div>
+                <div class="photo p3"></div>
+                <div class="photo p2"></div>
+                <div class="photo p5"></div>
+              </div>
+              <div class="received-toast">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m5 12 4 4L19 6" />
+                </svg>
+                <div>
+                  <strong data-i18n="mock_received">Originals received</strong
+                  ><small data-i18n="mock_saved">Saved to your gallery</small>
+                </div>
+              </div>
+            </div>
+            <div class="home-indicator"></div>
+          </div>
+          <div class="device-caption from">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="3" width="18" height="13" rx="2" />
+              <path d="M8 21h8m-4-5v5" />
+            </svg>
+            iPhone / Mac
+          </div>
+          <div class="device-caption to">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="6" y="2" width="12" height="20" rx="3" />
+              <path d="M10 18h4" />
+            </svg>
+            Android / Pixel
+          </div>
+          <figcaption>
+            <span data-i18n="mock_disclaimer"
+              >An illustration of the transfer experience.</span
+            >
+          </figcaption>
+        </figure>
+      </section>
+      <div class="trust wrap">
+        <span
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path
+              d="M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"
+            />
+            <circle cx="12" cy="19" r=".8" /></svg
+          ><span data-i18n="trust_wifi">Direct over Wi-Fi</span></span
+        ><span
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="4" />
+            <circle cx="8" cy="8" r="1.5" />
+            <path d="m3 17 6-6 4 4 3-3 5 5" /></svg
+          ><span data-i18n="trust_original">Original quality</span></span
+        ><span
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="8" />
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 1v1M12 22v1M1 12h1m20 0h1" /></svg
+          ><span data-i18n="trust_motion">Live Photos & bursts</span></span
+        ><span
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="5" y="10" width="14" height="11" rx="3" />
+            <path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg
+          ><span data-i18n="trust_private">Encrypted & private</span></span
+        >
+      </div>
+      <section class="section wrap" id="features">
+        <div class="section-heading centered">
+          <p data-i18n="features_kicker" class="kicker">
+            LESS MANAGING. MORE LIVING.
+          </p>
+          <h2 data-i18n="features_title">
+            Keep making memories.<br />We’ll help you keep a copy.
+          </h2>
+        </div>
+        <div class="bento">
+          <article class="feature automatic">
+            <div class="feature-copy">
+              <div class="feature-icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M18 18A8 8 0 0 1 5 15"
+                  />
+                </svg>
+              </div>
+              <h3 data-i18n="auto_title">Today’s photos. Tomorrow’s too.</h3>
+              <p data-i18n="auto_body">
+                Back up new photos as your library grows. Bring your existing
+                library along whenever you’re ready.
+              </p>
+            </div>
+            <div class="timeline">
+              <div>
+                <div class="photo p0"></div>
+                <span data-i18n="auto_old">Your existing library</span
+                ><span class="check"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m5 12 4 4L19 6" /></svg
+                ></span>
+              </div>
+              <div>
+                <div class="photo p4"></div>
+                <span data-i18n="auto_new">A new favorite</span
+                ><span class="check"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m5 12 4 4L19 6" /></svg
+                ></span>
+              </div>
+              <div>
+                <div class="photo p1"></div>
+                <span data-i18n="auto_next">And whatever comes next</span
+                ><span class="pulse-dot"></span>
+              </div>
+            </div>
+          </article>
+          <article class="feature motion">
+            <div class="feature-copy">
+              <div class="feature-icon">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="8" />
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 1v1M12 22v1M1 12h1m20 0h1" />
+                </svg>
+              </div>
+              <h3 data-i18n="motion_title">More than a still photo.</h3>
+              <p data-i18n="motion_body">
+                Original photos, videos, Live Photos and bursts. Supported Live
+                Photos become motion photos on Pixel, with both original parts
+                preserved during transfer.
+              </p>
+            </div>
+            <div class="motion-art">
+              <div class="photo p4"></div>
+              <span
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="8" />
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 1v1M12 22v1M1 12h1m20 0h1" />
+                </svg>
+                LIVE</span
+              >
+              <div class="motion-scrub"><i></i></div>
+            </div>
+          </article>
+          <article class="feature quiet">
+            <div class="feature-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 14A9 9 0 0 1 10 3a9 9 0 1 0 10 11Z" />
+              </svg>
+            </div>
+            <h3 data-i18n="background_title">A backup that fits your day.</h3>
+            <p data-i18n="background_body">
+              Background uploads on iPhone. A running Mac for bigger libraries.
+              Interrupted transfers resume without starting over.
+            </p>
+            <small data-i18n="background_note"
+              >iOS decides when background preparation runs; continuous
+              locked-screen backup is not guaranteed.</small
+            >
+          </article>
+          <article class="feature private">
+            <div class="feature-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="5" y="10" width="14" height="11" rx="3" />
+                <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+              </svg>
+            </div>
+            <h3 data-i18n="private_title">Your devices. Your originals.</h3>
+            <p data-i18n="private_body">
+              Pair by QR code. Transfer on your local network with encryption.
+              No PhotoBridge account or cloud storage in between.
+            </p>
+            <div class="private-route">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="6" y="2" width="12" height="20" rx="3" />
+                <path d="M10 18h4" /></svg
+              ><span>••••••••</span
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="5" y="10" width="14" height="11" rx="3" />
+                <path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg
+              ><span>••••••••</span
+              ><svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="6" y="2" width="12" height="20" rx="3" />
+                <path d="M10 18h4" />
+              </svg>
+            </div>
+          </article>
+        </div>
+      </section>
+      <section class="pixel-section">
+        <div class="wrap pixel-layout">
+          <div>
+            <p data-i18n="pixel_kicker" class="kicker">
+              A SECOND LIFE FOR YOUR PIXEL
+            </p>
+            <h2 data-i18n="pixel_title">
+              An iPhone library.<br />A Pixel possibility.
+            </h2>
+            <p data-i18n="pixel_body" class="section-copy">
+              Let your Pixel receive the photos you take on iPhone. Then let
+              Google Photos back them up to the cloud—with the storage benefits
+              available on your model.
+            </p>
+            <a
+              class="text-link"
+              href="https://support.google.com/photos/answer/6220791?co=GENIE.Platform%3DAndroid&hl=en"
+              target="_blank"
+              rel="noreferrer"
+              ><span data-i18n="pixel_policy"
+                >Check Google’s Pixel storage policy</span
+              >
+              ↗</a
+            >
+          </div>
+          <div class="pixel-benefit">
+            <span class="infinity">∞</span>
+            <h3 data-i18n="pixel_unlimited">
+              Unlimited memories.<br />With an eligible Pixel.
+            </h3>
+            <div class="benefit-row">
+              <strong>Pixel / Pixel XL</strong
+              ><span data-i18n="pixel_first"
+                >1st generation · Unlimited original-quality storage</span
+              >
+            </div>
+            <div class="benefit-row">
+              <strong>Pixel 2–5</strong
+              ><span data-i18n="pixel_other"
+                >Storage saver benefits vary by model</span
+              >
+            </div>
+            <small data-i18n="pixel_note"
+              >Google Photos performs the cloud backup separately. Device
+              receipt is not cloud confirmation. Benefits follow Google’s terms;
+              newer Pixels do not share the same offer.</small
+            >
+          </div>
+        </div>
+      </section>
+      <section class="section wrap how" id="how">
+        <div class="section-heading centered">
+          <p data-i18n="how_kicker" class="kicker">
+            FROM ONE DEVICE TO ANOTHER
+          </p>
+          <h2 data-i18n="how_title">Three steps. No cable.</h2>
+        </div>
+        <div class="steps">
+          <article>
+            <div class="step-visual">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0"
+                />
+                <circle cx="12" cy="19" r=".8" /></svg
+              ><span>01</span>
+            </div>
+            <h3 data-i18n="step_network">Join the same Wi-Fi</h3>
+            <p data-i18n="step_network_body">
+              Open PhotoBridge on your sender and Android receiver. Start
+              receiving on Android.
+            </p>
+          </article>
+          <article>
+            <div class="step-visual">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="6" y="2" width="12" height="20" rx="3" />
+                <path d="M10 18h4" /></svg
+              ><span>02</span>
+            </div>
+            <h3 data-i18n="step_pair">Scan to pair</h3>
+            <p data-i18n="step_pair_body">
+              Scan the receiver’s code with iPhone. On Mac, show the code and
+              scan it with your receiver.
+            </p>
+          </article>
+          <article>
+            <div class="step-visual">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="4" />
+                <circle cx="8" cy="8" r="1.5" />
+                <path d="m3 17 6-6 4 4 3-3 5 5" /></svg
+              ><span>03</span>
+            </div>
+            <h3 data-i18n="step_choose">Choose your memories</h3>
+            <p data-i18n="step_choose_body">
+              Send a few photos, back up new additions, or include your existing
+              library.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section class="open-future wrap">
+        <div>
+          <p data-i18n="future_kicker" class="kicker">
+            A BRIDGE, NOT A WALLED GARDEN
+          </p>
+          <h2 data-i18n="future_title">
+            Start here.<br />Go further, together.
+          </h2>
+          <p data-i18n="future_body">
+            Today: iPhone and Mac send to Android and Pixel. The shared
+            foundation separates sending from receiving, so more combinations
+            can grow from here.
+          </p>
+        </div>
+        <div class="platforms">
+          <div class="platform-row current">
+            <span class="available"
+              ><span data-i18n="future_now">Available now</span></span
+            ><strong>iPhone / Mac</strong
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 12h16m-6-6 6 6-6 6" /></svg
+            ><strong>Android / Pixel</strong>
+          </div>
+          <p data-i18n="future_exploring" class="future-label">
+            Future directions · Not available yet
+          </p>
+          <div class="platform-row">
+            <span>Windows</span
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 12h16m-6-6 6 6-6 6" /></svg
+            ><span>Pixel / Android</span>
+          </div>
+          <div class="platform-row">
+            <span>iPhone / Mac</span
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 12h16m-6-6 6 6-6 6" /></svg
+            ><span>NAS</span>
+          </div>
+          <div class="platform-row">
+            <span>Android</span
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 12h16m-6-6 6 6-6 6" /></svg
+            ><span>Apple</span>
+          </div>
+          <div class="platform-row">
+            <span>Android</span
+            ><svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 12h16m-6-6 6 6-6 6" /></svg
+            ><span>Android</span>
+          </div>
+          <small data-i18n="future_note"
+            >Directions, not release promises. Built in the open, with room for
+            new senders and receivers.</small
+          >
+        </div>
+      </section>
+      <section class="section wrap download" id="download">
+        <div class="section-heading centered">
+          <img
+            class="download-icon"
+            src="/icon.png"
+            width="76"
+            height="76"
+            alt="PhotoBridge"
+          />
+          <h2 data-i18n="download_title">
+            Give your photos<br />a second place to call home.
+          </h2>
+          <p data-i18n="download_intro">
+            Choose a sender. Add a receiver. Make your first copy.
+          </p>
+        </div>
+        <p role="status" id="release-status">
+          <span data-i18n="release_loading">Checking the latest release…</span>
+        </p>
+        <div class="download-grid">
+          <article>
+            <div class="download-platform">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="3" width="18" height="13" rx="2" />
+                <path d="M8 21h8m-4-5v5" />
+              </svg>
+              <h3>Mac</h3>
+            </div>
+            <p data-i18n="mac_role">Send from your library</p>
+            <p class="requirements">macOS 14+ · Apple Silicon</p>
+            <a
+              class="button"
+              id="download-mac"
+              href="https://github.com/qhhonx/photobridge/releases"
+              ><span data-i18n="download_releases">View releases</span></a
+            >
+            <p data-i18n="mac_install" class="small-note">
+              Move to Applications. This beta is not Apple-notarized; allow it
+              in Privacy & Security if prompted. Future updates use Sparkle.
+            </p>
+          </article>
+          <article>
+            <div class="download-platform">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="6" y="2" width="12" height="20" rx="3" />
+                <path d="M10 18h4" />
+              </svg>
+              <h3>Android</h3>
+            </div>
+            <p data-i18n="android_role">Your always-ready receiver</p>
+            <p class="requirements">Android 10+ · arm64</p>
+            <a
+              class="button"
+              id="download-android"
+              href="https://github.com/qhhonx/photobridge/releases"
+              ><span data-i18n="download_releases">View releases</span></a
+            >
+            <p data-i18n="android_install" class="small-note">
+              Install the APK. Android asks you to allow installation. Later
+              updates are checked in the app and installed with your
+              confirmation.
+            </p>
+          </article>
+          <article>
+            <div class="download-platform">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="6" y="2" width="12" height="20" rx="3" />
+                <path d="M10 18h4" />
+              </svg>
+              <h3>iPhone / iPad</h3>
+            </div>
+            <p data-i18n="ios_role">Send straight from Photos</p>
+            <p class="requirements">iOS 17+</p>
+            <a
+              class="button secondary"
+              href="https://github.com/qhhonx/photobridge/blob/main/docs/installation.md"
+              ><span data-i18n="ios_build">Build with Xcode ↗</span></a
+            >
+            <p data-i18n="ios_install" class="small-note">
+              Build with Xcode and your own signing team. No App Store or
+              TestFlight download yet. Development installs need periodic
+              renewal.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section class="wrap questions" id="questions">
+        <div>
+          <h2 data-i18n="faq_title">A few good questions.</h2>
+          <p data-i18n="faq_intro">
+            A little clarity before your first backup.
+          </p>
+        </div>
+        <div>
+          <details>
+            <summary data-i18n="faq_icloud_q">Do I need iCloud?</summary>
+            <p data-i18n="faq_icloud_a">
+              Not for originals already on your device. If a photo exists only
+              in iCloud, Apple Photos needs to download it first. iPhone can
+              send directly, without a Mac.
+            </p>
+          </details>
+          <details>
+            <summary data-i18n="faq_background_q">
+              Will backup run all night on iPhone?
+            </summary>
+            <p data-i18n="faq_background_a">
+              PhotoBridge supports background transfers and preparation. iOS
+              controls when preparation runs, so uninterrupted overnight backup
+              is not guaranteed. Avoid force-quitting the app. A running Mac is
+              useful for large first imports.
+            </p>
+          </details>
+          <details>
+            <summary data-i18n="faq_space_q">
+              What happens when my Pixel fills up?
+            </summary>
+            <p data-i18n="faq_space_a">
+              Storage budgets pause new reception when space is low. Verified
+              gallery copies can replace PhotoBridge’s private staging copies.
+              Experimental Google Photos space management uses its own
+              safe-backup confirmation and may need attention if the interface
+              changes.
+            </p>
+          </details>
+          <details>
+            <summary data-i18n="faq_cloud_q">
+              Does “received” mean backed up to Google Photos?
+            </summary>
+            <p data-i18n="faq_cloud_a">
+              No. PhotoBridge verifies delivery to the receiver. Google Photos
+              uploads separately; enable backup for the PhotoBridge folder and
+              confirm cloud completion there.
+            </p>
+          </details>
+          <details>
+            <summary data-i18n="faq_beta_q">
+              Can this be my only backup?
+            </summary>
+            <p data-i18n="faq_beta_a">
+              PhotoBridge is an early beta. Keep your original library and
+              another trusted copy. Try photos, a video and a Live Photo before
+              a large import.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+    <footer class="wrap">
+      <div>
+        <a class="brand" href="#"
+          ><img src="/icon.png" width="38" height="38" alt="" />PhotoBridge</a
+        >
+        <p data-i18n="footer_note">Keep the moments. Choose the destination.</p>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/qhhonx/photobridge">GitHub ↗</a
+        ><a href="https://github.com/qhhonx/photobridge/issues"
+          ><span data-i18n="footer_feedback">Feedback</span></a
+        ><a href="https://github.com/qhhonx/photobridge/blob/main/docs/licensing.md"
+          ><span data-i18n="footer_license">License</span></a
+        ><small data-i18n="footer_independent"
+          >Source available · Free for noncommercial use.</small
+        >
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,81 @@
+name: Publish apps
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: photobridge-release
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.event.repository.private == false
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Check version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+          python3 scripts/check-release.py "$RUNNER_TEMP/releases.json" >> "$GITHUB_OUTPUT"
+      - name: Keep published versions immutable
+        if: steps.version.outputs.publish != 'true'
+        run: echo 'Version already published. Increase version and build in release.json to publish another update.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        if: steps.version.outputs.publish == 'true'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        if: steps.version.outputs.publish == 'true'
+      - name: Validate and build
+        if: steps.version.outputs.publish == 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          PHOTOBRIDGE_RELEASE: '1'
+          ANDROID_BUILD_TASK: assembleRelease
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          test -n "$ANDROID_KEYSTORE_PASSWORD"
+          test -n "$SPARKLE_PRIVATE_KEY"
+          umask 077
+          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/photobridge.keystore"
+          export SPARKLE_KEY_FILE="$RUNNER_TEMP/sparkle.key"
+          trap 'rm -f "$ANDROID_KEYSTORE_FILE" "$SPARKLE_KEY_FILE"' EXIT
+          python3 -c 'import os,base64; open(os.environ["ANDROID_KEYSTORE_FILE"],"wb").write(base64.b64decode(os.environ["ANDROID_KEYSTORE_BASE64"]))'
+          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$SPARKLE_KEY_FILE"
+          rustup target add aarch64-apple-darwin aarch64-linux-android
+          cargo fmt --all -- --check
+          cargo test --workspace --locked
+          node --test site/tests/*.test.mjs
+          python3 scripts/audit-public.py
+          sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'ndk;27.1.12297006'
+          scripts/build-macos.sh
+          python3 tests/sparkle_integration.py
+          scripts/build-android.sh
+          scripts/package-release.sh
+          python3 scripts/sign-release.py
+          python3 scripts/verify-release.py
+      - name: Publish complete release
+        if: steps.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(python3 -c 'import json; print(json.load(open("release.json"))["version"])')"
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases-before-publish.json"
+          existing=$(python3 -c 'import json,sys; print("yes" if any(r["tag_name"]==sys.argv[1] for r in json.load(open(sys.argv[2]))) else "no")' "$tag" "$RUNNER_TEMP/releases-before-publish.json")
+          if [ "$existing" = no ]; then
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --title "PhotoBridge $tag" --notes-file docs/release-notes.md
+          fi
+          gh release upload "$tag" build/release/*.zip build/release/*.apk build/release/appcast.xml build/release/android-update.json build/release/SHA256SUMS --clobber
+          case "$tag" in
+            *-beta.*) gh release edit "$tag" --draft=false --prerelease ;;
+            *) gh release edit "$tag" --draft=false --latest ;;
+          esac

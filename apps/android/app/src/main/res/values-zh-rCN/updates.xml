@@ -1,0 +1,16 @@
+<resources>
+    <string name="updates_title">应用更新</string>
+    <string name="updates_automatic">自动检查更新</string>
+    <string name="updates_note">下载后会校验当前应用的签名，安装时需要系统确认。</string>
+    <string name="updates_check">检查更新</string>
+    <string name="updates_checking">正在检查更新…</string>
+    <string name="updates_current">当前已是最新可用版本。</string>
+    <string name="updates_available">发现新版本 %1$s。</string>
+    <string name="updates_download">下载更新</string>
+    <string name="updates_downloading">正在下载并校验更新…</string>
+    <string name="updates_install">安装已下载更新</string>
+    <string name="updates_permission">请允许 PhotoBridge 安装应用，然后返回点击安装。</string>
+    <string name="updates_confirm">请在 Android 安装页面确认更新。</string>
+    <string name="updates_failed">无法下载或校验更新，请检查网络后重试。开发版无法直接安装签名不同的正式发布版。</string>
+    <string name="official_website">官方网站</string>
+</resources>

@@ -1,0 +1,4 @@
+<resources>
+    <item name="receiver_history_list" type="id" />
+    <item name="main_navigation" type="id" />
+</resources>
