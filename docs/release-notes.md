@@ -1,11 +1,11 @@
-# Beta 5
+# Beta 6
 
-- Use the simpler Photo arch icon in the published Mac app.
-- Adapt the Android launcher icon to circular and other system masks, with a full-bleed background and a crisp vector foreground.
-- Add a monochrome icon layer for supported Android themed launchers.
+- Prepare and schedule Apple photo backups by capture time, newest first.
+- Automatically reorder existing pending photos using metadata, without downloading originals again.
+- Correct incremental discovery and batch export ordering on both iPhone and Mac.
+- Preserve active transfers, completed receipts, pairings and retry deadlines. Concurrent transfers may still finish in a different order.
 
-Existing pairings, transfer queues and backup settings are preserved. The iOS icon
-and backup behavior are unchanged.
+This release fixes backup ordering. iOS background scheduling is unchanged.
 
 Mac requires Apple Silicon and macOS 14+. Android requires arm64 and Android 10+.
 iOS 17+ is available from source. The Mac beta is not Apple-notarized.
