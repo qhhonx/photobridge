@@ -82,5 +82,15 @@
   "footer_note": "留住回忆，去处由你。",
   "footer_feedback": "反馈问题",
   "footer_independent": "源码公开 · 非商业使用免费。",
-  "footer_license": "使用许可"
+  "footer_license": "使用许可",
+  "demo_kicker": "IPHONE → PIXEL · 42 秒",
+  "demo_title": "看看照片，<br />怎样到达另一台设备。",
+  "demo_body": "连上 Wi-Fi，扫码配对。以前的图库可以导入，新拍的照片接着备份。用一段短片，看懂 PhotoBridge 的完整流程。",
+  "demo_direct": "直接传到 Pixel，不用 Mac 中转。",
+  "demo_motion": "照片、视频、动图和连拍，一起保留。",
+  "demo_new": "备份已有图库，也接住新的回忆。",
+  "demo_download": "选择你的版本",
+  "demo_note": "视频使用示例照片与示意界面。Pixel 上的 Google 相册负责云端备份。后台上传由 iOS 调度；iOS 目前需要用 Mac 和 Xcode 自行安装。",
+  "demo_caption": "42 秒 · 配乐与画面文字 · 示例演示",
+  "demo_fallback": "你的浏览器不支持内嵌视频播放。"
 }

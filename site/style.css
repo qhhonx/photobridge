@@ -1516,6 +1516,41 @@ html[lang="zh-CN"] .phone h3 {
     font-size: 14px;
   }
 }
+.demo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  align-items: center;
+  gap: 80px;
+}
+.demo h2 {
+  font-size: clamp(32px, 4vw, 48px);
+  line-height: 1.2;
+  letter-spacing: -1.5px;
+  margin: 16px 0 24px;
+}
+.demo-highlights {
+  padding-left: 20px;
+  margin: 24px 0;
+}
+.demo-highlights li { margin: 10px 0; }
+.demo-highlights li::marker { color: var(--blue); }
+.demo-note { margin-top: 24px; font-size: 13px; color: var(--muted); }
+.demo-player { min-width: 0; text-align: center; }
+.demo-player video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 9 / 16;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  box-shadow: 0 18px 60px #23385712;
+}
+.demo-player figcaption { margin-top: 14px; color: var(--muted); font-size: 12px; }
+@media (max-width: 720px) {
+  .demo { grid-template-columns: 1fr; gap: 32px; }
+  .demo-player { width: min(100%, 340px); margin-inline: auto; }
+}
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

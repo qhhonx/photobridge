@@ -1,3 +1,5 @@
+import { updateDemoLanguage } from "./lib/demo.js";
+
 const elements = [...document.querySelectorAll("[data-i18n]")];
 const english = Object.fromEntries(
   elements.map((el) => [el.dataset.i18n, el.innerHTML]),
@@ -17,6 +19,7 @@ let chinese = {},
   releaseFailed = false;
 function render() {
   document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+  updateDemoLanguage(document.querySelector("#product-demo"), language);
   const copy = language === "zh" ? chinese : english;
   for (const el of elements)
     el.innerHTML = copy[el.dataset.i18n] || english[el.dataset.i18n];
