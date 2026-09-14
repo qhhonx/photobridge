@@ -1,5 +1,17 @@
 use super::*;
 
+/// Filters, ordering and continuation cursor for one page of transfer jobs.
+#[derive(Clone, Copy, Debug)]
+pub struct JobQuery<'a> {
+    pub after: i64,
+    pub after_value: Option<i64>,
+    pub limit: u32,
+    pub receiver: Option<&'a str>,
+    pub state: Option<&'a str>,
+    pub sort: &'a str,
+    pub descending: bool,
+}
+
 pub(super) fn migrate(conn: &Connection) -> Result<()> {
     let present: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('jobs') WHERE name='state_changed_at_ms')", [], |r|r.get(0)).map_err(db)?;
     if !present {
@@ -19,16 +31,16 @@ pub(super) fn migrate(conn: &Connection) -> Result<()> {
 impl Sender {
     /// Cursor contains both the ordering value and the ID; ties and a moving
     /// anchor do not reset pagination. Unknown dates always sort last.
-    pub fn browse(
-        &self,
-        after: i64,
-        after_value: Option<i64>,
-        limit: u32,
-        receiver: Option<&str>,
-        state: Option<&str>,
-        sort: &str,
-        descending: bool,
-    ) -> Result<Vec<Job>> {
+    pub fn browse(&self, query: JobQuery<'_>) -> Result<Vec<Job>> {
+        let JobQuery {
+            after,
+            after_value,
+            limit,
+            receiver,
+            state,
+            sort,
+            descending,
+        } = query;
         let expression = match sort {
             "added" => "id",
             "capture" => "CAST(json_extract(manifest,'$.metadata.created_at_ms') AS INTEGER)",
@@ -94,15 +106,15 @@ mod tests {
             let mut value = None;
             loop {
                 let page = s
-                    .browse(
-                        cursor,
-                        value,
-                        70,
-                        Some("r"),
-                        Some("received"),
-                        "capture",
+                    .browse(JobQuery {
+                        after: cursor,
+                        after_value: value,
+                        limit: 70,
+                        receiver: Some("r"),
+                        state: Some("received"),
+                        sort: "capture",
                         descending,
-                    )
+                    })
                     .unwrap();
                 if page.is_empty() {
                     break;
@@ -127,15 +139,32 @@ mod tests {
         assert!(s.job(206).unwrap().state_changed_at_ms.unwrap() > 0);
         let failed = s.job(206).unwrap();
         s.fail(&failed.attempt(), Failure::Network, 100).unwrap();
-        assert_eq!(
-            s.browse(0, None, 10, Some("r"), Some("waiting"), "retry", false)
-                .unwrap()[0]
-                .id,
-            206
-        );
-        assert!(s.browse(1, None, 10, None, None, "capture", false).is_err());
+        let query = JobQuery {
+            after: 0,
+            after_value: None,
+            limit: 10,
+            receiver: Some("r"),
+            state: Some("waiting"),
+            sort: "retry",
+            descending: false,
+        };
+        assert_eq!(s.browse(query).unwrap()[0].id, 206);
         assert!(s
-            .browse(0, None, 10, None, None, "untrusted SQL", false)
+            .browse(JobQuery {
+                after: 1,
+                receiver: None,
+                state: None,
+                sort: "capture",
+                ..query
+            })
+            .is_err());
+        assert!(s
+            .browse(JobQuery {
+                receiver: None,
+                state: None,
+                sort: "untrusted SQL",
+                ..query
+            })
             .is_err());
         // Direction/state filters are applied before pagination; legacy ID order is unchanged.
         assert_eq!(s.list_filtered(0, 1, Some("r"), None).unwrap()[0].id, 1);

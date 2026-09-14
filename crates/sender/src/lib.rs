@@ -11,6 +11,7 @@ use std::{
 };
 
 mod sorting;
+pub use sorting::JobQuery;
 
 fn db(e: rusqlite::Error) -> Error {
     Error::Storage(e.to_string())

@@ -9,7 +9,7 @@ pub use background::NativeRequest;
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use photobridge_core::*;
-use photobridge_sender::{Attempt, Failure, Job, Sender};
+use photobridge_sender::{Attempt, Failure, Job, JobQuery, Sender};
 use photobridge_store::Receiver;
 use photobridge_transport::Client;
 use serde::{Deserialize, Serialize};
@@ -1189,15 +1189,15 @@ fn dispatch(command: Command) -> Result<Value> {
             let host = sender()?;
             let sender = host.sender.lock().map_err(lock)?;
             let jobs = if let Some(sort) = sort {
-                sender.browse(
+                sender.browse(JobQuery {
                     after,
                     after_value,
-                    200,
-                    receiver_id.as_deref(),
-                    state.as_deref(),
-                    &sort,
+                    limit: 200,
+                    receiver: receiver_id.as_deref(),
+                    state: state.as_deref(),
+                    sort: &sort,
                     descending,
-                )?
+                })?
             } else {
                 sender.list_filtered_ordered(
                     after,

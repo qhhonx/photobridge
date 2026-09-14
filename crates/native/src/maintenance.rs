@@ -284,10 +284,12 @@ impl Maintenance {
         }
         Ok(result)
     }
-    /// Read-only, receiver-scoped browsing includes delayed preparation retries.
+    /// Ascending-page shorthand for the pagination regression tests.
+    #[cfg(test)]
     pub fn source_page(&self, receiver: &str, history: bool, after: i64) -> Result<Value> {
         self.source_page_ordered(receiver, history, after, false)
     }
+    /// Read-only, receiver-scoped browsing includes delayed preparation retries.
     pub fn source_page_ordered(
         &self,
         receiver: &str,
