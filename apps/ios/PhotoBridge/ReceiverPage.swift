@@ -10,8 +10,7 @@ struct IOSReceiverPage: View {
           VStack(alignment: .leading, spacing: 16) {
             Image(systemName: "externaldrive.badge.wifi").font(.largeTitle).foregroundStyle(.tint)
             if let peer = model.peerDevice { Text(peer.name).font(.title2) }
-            Text(model.pairing == nil ? "receiver_unpaired" : "receiver_paired").font(
-              .title3.weight(.medium))
+            ReceiverStatusIndicator(model: model)
             Text(
               model.pairing == nil ? "receiver_pair_instructions" : "receiver_direct_description"
             )
@@ -34,9 +33,6 @@ struct IOSReceiverPage: View {
           } header: {
             Text("receiver_connection_details")
           }
-        }
-        if let message = model.message {
-          Section { Text(message).font(.callout).foregroundStyle(.secondary) }
         }
         Section { Text("receipt_explanation").foregroundStyle(.secondary) }
       }

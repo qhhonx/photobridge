@@ -1,6 +1,8 @@
 import Foundation
 import Photos
 import SwiftUI
+import CoreTransferable
+import UniformTypeIdentifiers
 
 struct StorageSettings: Codable {
   var cache_budget_bytes: UInt64
@@ -52,6 +54,7 @@ struct StoragePreferences: View {
       ).font(.headline).task { await model.refreshStorage() }
       if let snapshot = model.storage {
         if scope != .logs {
+          Text("storage_cache_description").font(.footnote).foregroundStyle(.secondary)
           LabeledContent("storage_cache_used", value: bytes(snapshot.used_bytes))
           LabeledContent("storage_disk_free", value: bytes(snapshot.free_bytes))
           Picker(
@@ -65,6 +68,7 @@ struct StoragePreferences: View {
               })
           ) { ForEach([1, 2, 5, 10, 20, 50], id: \.self) { Text("\($0) GB").tag($0) } }
           .accessibilityIdentifier("settings.cache_budget")
+          Text("storage_cache_budget_help").font(.footnote).foregroundStyle(.secondary)
           Picker(
             "storage_min_free",
             selection: Binding(
@@ -75,6 +79,7 @@ struct StoragePreferences: View {
                 Task { await model.saveStorage(settings) }
               })
           ) { ForEach([1, 2, 5, 10], id: \.self) { Text("\($0) GB").tag($0) } }
+          Text("storage_min_free_help").font(.footnote).foregroundStyle(.secondary)
           Toggle(
             "storage_auto_reclaim",
             isOn: Binding(
@@ -85,8 +90,23 @@ struct StoragePreferences: View {
                 Task { await model.saveStorage(settings) }
               }))
           Text("storage_reclaim_note").font(.footnote).foregroundStyle(.secondary)
-          Button("storage_reclaim_now") { Task { await model.reclaimCache() } }
-            .accessibilityIdentifier("settings.reclaim_cache")
+          if snapshot.used_bytes == 0 {
+            Text("storage_cache_empty").foregroundStyle(.secondary)
+          } else {
+            Button {
+              Task { await model.reclaimCache(reportResult: true) }
+            } label: {
+              Label(model.reclaimingCache ? "storage_reclaim_running" : "storage_reclaim_now",
+                systemImage: "arrow.clockwise")
+            }.buttonStyle(.bordered)
+              .disabled(model.reclaimingCache || !model.ready)
+              .accessibilityIdentifier("settings.reclaim_cache")
+            Text("storage_reclaim_check_help").font(.footnote).foregroundStyle(.secondary)
+          }
+          if let result = model.cacheReclaimResult {
+            Text(result).font(.footnote).foregroundStyle(.secondary)
+              .accessibilityIdentifier("settings.reclaim_result")
+          }
         }
         if scope == .all { Divider() }
         if scope != .cache {
@@ -140,14 +160,15 @@ struct StoragePreferences: View {
     ByteCountFormatter.string(fromByteCount: Int64(value), countStyle: .file)
   }
 }
-struct ActivityEntry: Decodable {
+struct ActivityEntry: Decodable, Identifiable, Equatable {
+  let id: Int64
   let timestamp: Int64
   let code: String
   let job_id: Int64?
   let bytes: Int64?
   let context: ActivityContext?
 }
-struct ActivityContext: Decodable {
+struct ActivityContext: Decodable, Equatable {
   let queued: Int?
   let running: Int?
   let waiting: Int?
@@ -167,7 +188,7 @@ struct ActivityContext: Decodable {
 }
 private struct ActivityContextView: View {
   let context: ActivityContext
-  @State private var expanded = false
+  @Binding var expanded: Bool
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
       // A DisclosureGroup inside a macOS List can become an outline-row
@@ -219,64 +240,153 @@ private struct ActivityContextView: View {
     }.font(.caption).foregroundStyle(.secondary)
   }
 }
+struct ActivityLogUpdate: Decodable {
+  let entries: [ActivityEntry]
+  let oldest_id: Int64?
+  let newest_id: Int64?
+  let reset: Bool
+}
+
+@MainActor final class ActivityLogModel: ObservableObject {
+  @Published private(set) var entries: [ActivityEntry] = []
+  @Published private(set) var pendingCount = 0
+  @Published private(set) var failed = false
+  @Published private(set) var loaded = false
+  private var latest: [ActivityEntry] = []
+  private(set) var cursor: Int64 = 0
+  private let fetch: (Int64) async throws -> ActivityLogUpdate
+  init(fetch: @escaping (Int64) async throws -> ActivityLogUpdate = { cursor in
+    try JSONDecoder().decode(ActivityLogUpdate.self,
+      from: await Bridge.call(["op": "activity_log", "receiver": false, "after": cursor]))
+  }) { self.fetch = fetch }
+
+  @discardableResult func refresh(followingNewest: () -> Bool) async -> Bool {
+    do {
+      let update = try await fetch(cursor)
+      guard !Task.isCancelled else { return false }
+      var merged = update.reset ? [] : latest
+      if !update.entries.isEmpty {
+        let incoming = Set(update.entries.map(\.id))
+        merged.removeAll { incoming.contains($0.id) }
+        merged = (update.entries + merged).sorted { $0.id > $1.id }
+      }
+      if let oldest = update.oldest_id { merged.removeAll { $0.id < oldest } }
+      else { merged = [] }
+      latest = merged
+      cursor = update.newest_id ?? 0
+      let follow = followingNewest() || !loaded
+      if follow { showLatest() }
+      else {
+        let shown = Set(entries.map(\.id))
+        let count = latest.filter { !shown.contains($0.id) }.count
+        if pendingCount != count { pendingCount = count }
+      }
+      if !loaded { loaded = true }
+      if failed { failed = false }
+      return follow
+    } catch {
+      if !Task.isCancelled && !failed { failed = true }
+      return false
+    }
+  }
+  func showLatest() {
+    if entries != latest { entries = latest }
+    if pendingCount != 0 { pendingCount = 0 }
+  }
+}
+
+/// Each share request creates an immutable current snapshot, not the opening-time log.
+private struct ActivityLogReport: Transferable {
+  static var transferRepresentation: some TransferRepresentation {
+    FileRepresentation(exportedContentType: .json) { (_: ActivityLogReport) in
+      let data = try await Bridge.call(["op": "activity_log", "receiver": false])
+      let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
+        "PhotoBridge-diagnostics-" + UUID().uuidString, isDirectory: true)
+      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      let url = directory.appendingPathComponent("PhotoBridge-diagnostics.json")
+      try data.write(to: url, options: .atomic)
+      return SentTransferredFile(url)
+    }
+  }
+}
+
 struct ActivityLogView: View {
   @Environment(\.dismiss) private var dismiss
-  @State private var entries: [ActivityEntry] = []
-  @State private var export: URL?
-  @State private var error = false
+  @Environment(\.scenePhase) private var scenePhase
+  @StateObject private var journal = ActivityLogModel()
+  @State private var visibleID: Int64?
+  @State private var expanded: Set<Int64> = []
   var body: some View {
     NavigationStack {
       VStack(alignment: .leading, spacing: 12) {
         Text("logs_privacy_note").font(.footnote).foregroundStyle(.secondary)
-        if error { Text("logs_load_failed").foregroundStyle(.orange) }
-        List(Array(entries.enumerated()), id: \.offset) { _, entry in
-          VStack(alignment: .leading, spacing: 5) {
-            Text(Date(timeIntervalSince1970: Double(entry.timestamp)), format: .dateTime.year().month().day().hour().minute().second()).font(
-              .caption
-            ).foregroundStyle(.secondary)
-            Text(LocalizedStringKey("event_" + entry.code))
-            if let job = entry.job_id {
-              Text(String(format: NSLocalizedString("logs_job_id", comment: ""), job)).font(
-                .caption
-              ).foregroundStyle(.secondary)
+        HStack {
+          Label(journal.failed ? "logs_load_retrying" : "logs_live",
+            systemImage: journal.failed ? "exclamationmark.circle" : "dot.radiowaves.left.and.right")
+            .foregroundStyle(journal.failed ? Color.orange : Color.secondary)
+          Spacer()
+          Button {
+            journal.showLatest()
+            visibleID = journal.entries.first?.id
+          } label: {
+            Text(journal.pendingCount > 0
+              ? String(format: NSLocalizedString("logs_new_count", comment: ""), journal.pendingCount)
+              : NSLocalizedString("logs_latest", comment: ""))
+          }.buttonStyle(.borderless).accessibilityIdentifier("activity.latest")
+        }.font(.caption).frame(height: 28)
+        ScrollView {
+          LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(journal.entries) { entry in
+              VStack(alignment: .leading, spacing: 5) {
+                Text(Date(timeIntervalSince1970: Double(entry.timestamp)), format: .dateTime.year().month().day().hour().minute().second())
+                  .font(.caption).foregroundStyle(.secondary)
+                Text(LocalizedStringKey("event_" + entry.code))
+                if let job = entry.job_id {
+                  Text(String(format: NSLocalizedString("logs_job_id", comment: ""), job))
+                    .font(.caption).foregroundStyle(.secondary)
+                }
+                if let amount = entry.bytes {
+                  Text(ByteCountFormatter.string(fromByteCount: amount, countStyle: .file))
+                    .font(.caption).foregroundStyle(.secondary)
+                }
+                if let context = entry.context {
+                  ActivityContextView(context: context, expanded: Binding(
+                    get: { expanded.contains(entry.id) },
+                    set: { if $0 { expanded.insert(entry.id) } else { expanded.remove(entry.id) } }))
+                }
+                Divider().padding(.top, 7)
+              }.frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
+                .padding(.vertical, 12).id(entry.id)
             }
-            if let amount = entry.bytes {
-              Text(ByteCountFormatter.string(fromByteCount: amount, countStyle: .file)).font(
-                .caption
-              ).foregroundStyle(.secondary)
-            }
-            if let context = entry.context { ActivityContextView(context: context) }
-          }.frame(maxWidth: .infinity, alignment: .leading).textSelection(.enabled)
-        }.listStyle(.plain)
+          }.scrollTargetLayout()
+        }.scrollPosition(id: $visibleID, anchor: .top)
+          .transaction { $0.animation = nil }
       }.padding().navigationTitle("activity_log")
         .toolbar {
           ToolbarItem(placement: .confirmationAction) {
             Button("settings_done") { dismiss() }.accessibilityIdentifier("activity.done")
           }
           ToolbarItem(placement: .cancellationAction) {
-            if let export {
-              ShareLink("logs_export", item: export).accessibilityIdentifier("activity.export")
-            } else {
-              Button("logs_export") {}.disabled(true).accessibilityIdentifier("activity.export")
-            }
+            ShareLink(item: ActivityLogReport(), preview: SharePreview("PhotoBridge-diagnostics.json")) {
+              Text("logs_export")
+            }.disabled(!journal.loaded).accessibilityIdentifier("activity.export")
           }
         }
     }
     #if os(macOS)
       .frame(width: 680, height: 540)
     #endif
-    .task {
-      do {
-        let data = try await Bridge.call(["op": "activity_log", "receiver": false])
-        entries = try JSONDecoder().decode([ActivityEntry].self, from: data)
-        // A second window/export must not overwrite a report already being shared.
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(
-          "PhotoBridge-diagnostics-" + UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let url = directory.appendingPathComponent("PhotoBridge-diagnostics.json")
-        try data.write(to: url, options: .atomic)
-        export = url
-      } catch { self.error = true }
+    .task(id: scenePhase) {
+      guard scenePhase == .active else { return }
+      while !Task.isCancelled {
+        let follow = await journal.refresh {
+          expanded.isEmpty && (visibleID == nil || visibleID == journal.entries.first?.id)
+        }
+        guard !Task.isCancelled else { return }
+        if follow { visibleID = journal.entries.first?.id }
+        expanded.formIntersection(Set(journal.entries.map(\.id)))
+        do { try await Task.sleep(for: .seconds(2)) } catch { return }
+      }
     }
   }
 }

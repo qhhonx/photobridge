@@ -40,10 +40,14 @@ struct BackupJob: Decodable, Identifiable, Equatable {
   let errorCode: String?
   var attempts: Int? = nil
   var nextAttemptAt: Int64? = nil
+  var stateChangedAt: Int64? = nil
+  var sortValue: Int64? = nil
   var totalBytes: UInt64 { asset.resources.reduce(0) { $0 + $1.size } }
   enum CodingKeys: String, CodingKey {
     case id, asset, state, attempts
     case nextAttemptAt = "next_attempt_at"
+    case stateChangedAt = "state_changed_at_ms"
+    case sortValue = "sort_value"
     case confirmedBytes = "confirmed_bytes"
     case errorCode = "error_code"
   }
@@ -116,6 +120,8 @@ enum Bridge {
   @Published var storage: StorageSnapshot?
   @Published var storageError: String?
   @Published var savingStorage = false
+  @Published var reclaimingCache = false
+  @Published var cacheReclaimResult: String?
   @Published var pendingImports = 0
   @Published var preparationReason: String?
   private var lastStorageRefresh = Date.distantPast
@@ -128,6 +134,8 @@ enum Bridge {
   private lazy var receiverDiscovery = ReceiverDiscovery(model: self)
   private var opening: Task<Void, Never>?
   @Published var pairing: Pairing?
+  @Published var pairingError: String?
+  @Published var pairingInProgress = false
   @Published var deviceSnapshot: DeviceSnapshot?
   @Published var deviceError: String?
   @Published var savingDevice = false
@@ -227,6 +235,10 @@ enum Bridge {
     }
   }
   func pair(_ payload: String) async {
+    guard !pairingInProgress else { return }
+    pairingInProgress = true
+    pairingError = nil
+    defer { pairingInProgress = false }
     do {
       let parsed = try JSONDecoder().decode(Pairing.self, from: Data(payload.utf8))
       // Rust validates identity/certificate and establishes TLS before trust is saved.
@@ -237,7 +249,7 @@ enum Bridge {
       if let saved = pairing, saved.receiverID == parsed.receiverID, saved.endpoint != parsed.endpoint {
         // Keep saved trust when a QR code supplies a new route for the same peer.
         let restored = await relocateReceiver(to: parsed.endpoint, expected: saved)
-        message = NSLocalizedString(restored ? "pair_success" : "error_network", comment: "")
+        pairingError = restored ? nil : NSLocalizedString("error_network", comment: "")
         return
       }
       // Cancel requests signed for the old receiver before replacing its trust.
@@ -256,9 +268,8 @@ enum Bridge {
       Task { await self.syncDeviceProfile(force: true) }
       queueRevision = -1
       await refresh()
-      message = NSLocalizedString("pair_success", comment: "")
       if !paused { startWorker() }
-    } catch { message = error.localizedDescription }
+    } catch { pairingError = error.localizedDescription }
   }
   @discardableResult func relocateReceiver(to endpoint: String, expected: Pairing) async -> Bool {
     guard pairing?.receiverID == expected.receiverID, pairing?.endpoint == expected.endpoint,
@@ -603,9 +614,20 @@ enum Bridge {
       storageError = NSLocalizedString("storage_settings_invalid", comment: "")
     } catch { storageError = error.localizedDescription }
   }
-  func reclaimCache() async {
+  func reclaimCache(reportResult: Bool = false) async {
+    guard !reclaimingCache else { return }
+    reclaimingCache = true
+    if reportResult { cacheReclaimResult = nil }
+    defer { reclaimingCache = false }
     do {
-      _ = try await Bridge.call(["op": "reclaim_sender_cache"])
+      let data = try await Bridge.call(["op": "reclaim_sender_cache"])
+      if reportResult {
+        let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let bytes = (result?["reclaimed_bytes"] as? NSNumber)?.int64Value ?? 0
+        cacheReclaimResult = bytes == 0 ? NSLocalizedString("storage_reclaim_none", comment: "")
+          : String(format: NSLocalizedString("storage_reclaim_result", comment: ""),
+            ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
+      }
       await refreshStorage()
     } catch { storageError = error.localizedDescription }
   }
@@ -741,4 +763,25 @@ struct SenderSummary: Decodable {
   var running = 0
   var paused = 0
   var confirmed_bytes: Int64 = 0
+  func count(for state: String) -> Int {
+    switch state {
+    case "received": return received
+    case "waiting": return waiting
+    case "failed": return failed
+    case "queued": return queued
+    case "running": return running
+    case "paused": return paused
+    default: return total
+    }
+  }
+}
+
+extension BackupModel {
+  func transferCount(for state: String) -> Int {
+    switch state {
+    case "preparing": return pendingImports
+    case "scanned": return historicalImport?.checked ?? 0
+    default: return summary.count(for: state)
+    }
+  }
 }

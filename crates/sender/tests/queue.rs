@@ -370,6 +370,46 @@ fn filtering_precedes_task_pagination() {
             .len(),
         5
     );
+    let mut ascending = Vec::new();
+    let mut descending = Vec::new();
+    for (reverse, ids) in [(false, &mut ascending), (true, &mut descending)] {
+        let mut cursor = 0;
+        loop {
+            let page = sender
+                .list_filtered_ordered(cursor, 100, Some("receiver-1"), Some("queued"), reverse)
+                .unwrap();
+            if page.is_empty() {
+                break;
+            }
+            cursor = page.last().unwrap().id;
+            ids.extend(page.into_iter().map(|job| job.id));
+        }
+    }
+    assert_eq!(ascending.len(), 205);
+    assert!(ascending.windows(2).all(|pair| pair[0] < pair[1]));
+    assert_eq!(
+        descending,
+        ascending.iter().rev().copied().collect::<Vec<_>>()
+    );
+    let cursor = descending[99];
+    let mut late = asset();
+    late.source_id = "inserted-between-pages".into();
+    sender
+        .enqueue(
+            "receiver-1",
+            late,
+            BTreeMap::from([(digest(b"0123456789"), "resource".into())]),
+        )
+        .unwrap();
+    assert_eq!(
+        sender
+            .list_filtered_ordered(cursor, 200, Some("receiver-1"), Some("queued"), true)
+            .unwrap()
+            .into_iter()
+            .map(|job| job.id)
+            .collect::<Vec<_>>(),
+        descending[100..]
+    );
     let running = sender.claim("receiver-2", 100).unwrap().unwrap();
     sender
         .fail(&running.attempt(), Failure::Network, 100)

@@ -1,6 +1,27 @@
 import XCTest
 
 final class SettingsTests: XCTestCase {
+  @MainActor func testCompactStatusIndicatorsOpenDetails() {
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    app.launch()
+    XCTAssertTrue(app.tabBars.buttons.element(boundBy: 1).waitForExistence(timeout: 20))
+    app.tabBars.buttons.element(boundBy: 1).tap()
+    let backup = app.buttons["backup.status_indicator"]
+    XCTAssertTrue(backup.waitForExistence(timeout: 10))
+    XCTAssertLessThanOrEqual(backup.frame.height, 48)
+    backup.tap()
+    XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
+    app.buttons["Done"].tap()
+    app.tabBars.buttons.element(boundBy: 2).tap()
+    let receiver = app.buttons["receiver.status_indicator"]
+    XCTAssertTrue(receiver.waitForExistence(timeout: 10))
+    XCTAssertLessThanOrEqual(receiver.frame.height, 48)
+    receiver.tap()
+    XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 10))
+    app.buttons["Done"].tap()
+  }
+
   @MainActor func testTaskExplanationsAndTrailingFilter() {
     continueAfterFailure = false
     let app = XCUIApplication()
@@ -20,6 +41,8 @@ final class SettingsTests: XCTestCase {
       entry.tap()
       let explanation = app.staticTexts["transfers.explanation"]
       XCTAssertTrue(explanation.waitForExistence(timeout: 10))
+      XCTAssertEqual(app.staticTexts["transfers.title"].label, state == "queued" ? "Queued" : "Received")
+      XCTAssertEqual(app.staticTexts["transfers.count"].label, "0 items")
       XCTAssertTrue(explanation.label.contains(state == "queued" ? "Files are ready" : "received and verified"))
       let filter = app.descendants(matching: .any)["transfers.filter"].firstMatch
       XCTAssertTrue(filter.exists)
@@ -30,6 +53,53 @@ final class SettingsTests: XCTestCase {
       screen.name = "Task explanation — \(state)"; screen.lifetime = .keepAlways; add(screen)
       app.navigationBars.buttons.element(boundBy: 0).tap()
     }
+  }
+
+  @MainActor func testTransferSortPersistsAcrossListsAndRelaunch() {
+    continueAfterFailure = false
+    let app = XCUIApplication()
+    app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+    func openList(_ state: String) {
+      let backup = app.tabBars.buttons.element(boundBy: 1)
+      XCTAssertTrue(backup.waitForExistence(timeout: 20))
+      backup.tap()
+      let entry = app.buttons["backup.filter.\(state)"]
+      for _ in 0..<8 {
+        if entry.exists && entry.isHittable { break }
+        app.swipeUp()
+      }
+      XCTAssertTrue(entry.isHittable)
+      entry.tap()
+      XCTAssertTrue(app.staticTexts["transfers.sort_description"].waitForExistence(timeout: 10))
+    }
+    app.launch()
+    openList("received")
+    app.buttons["transfers.sort"].tap()
+    app.buttons["transfers.sort_recommended"].tap()
+    app.buttons["transfers.sort"].tap()
+    app.buttons["transfers.sort_descending"].tap()
+    XCTAssertEqual(app.staticTexts["transfers.sort_description"].label, "Capture time · newest first")
+    app.buttons["transfers.sort"].tap()
+    app.buttons["transfers.sort_ascending"].tap()
+    XCTAssertEqual(app.staticTexts["transfers.sort_description"].label, "Capture time · oldest first")
+    app.navigationBars.buttons.element(boundBy: 0).tap()
+    openList("preparing")
+    XCTAssertEqual(app.staticTexts["transfers.sort_description"].label, "Capture time · newest first")
+    app.terminate()
+    app.launch()
+    openList("received")
+    XCTAssertEqual(app.staticTexts["transfers.sort_description"].label, "Capture time · oldest first")
+    app.buttons["transfers.sort"].tap()
+    app.buttons["transfers.sort_by_activity"].tap()
+    XCTAssertEqual(app.staticTexts["transfers.sort_description"].label, "Receipt time · newest first")
+    app.navigationBars.buttons.element(boundBy: 0).tap()
+    openList("scanned")
+    XCTAssertEqual(app.staticTexts["transfers.sort_description"].label, "Capture time · newest first")
+    app.buttons["transfers.sort"].tap()
+    app.buttons["transfers.sort_descending"].tap()
+    XCTAssertEqual(app.staticTexts["transfers.sort_description"].label, "Capture time · newest first")
+    let screen = XCTAttachment(screenshot: app.screenshot())
+    screen.name = "Transfer sorting"; screen.lifetime = .keepAlways; add(screen)
   }
 
   @MainActor func testBackupPreparationAndScanDrilldowns() {
@@ -48,7 +118,7 @@ final class SettingsTests: XCTestCase {
       }
       XCTAssertTrue(entry.isHittable)
       entry.tap()
-      XCTAssertTrue(app.staticTexts["Showing 0 of 0 photos"].waitForExistence(timeout: 10))
+      XCTAssertTrue(app.staticTexts["0 photos · 0 loaded"].waitForExistence(timeout: 10))
       let screen = XCTAttachment(screenshot: app.screenshot())
       screen.name = "Backup source drilldown — \(state)"
       screen.lifetime = .keepAlways
@@ -161,8 +231,16 @@ final class SettingsTests: XCTestCase {
     expectation(for: enabled, evaluatedWith: export)
     waitForExpectations(timeout: 10)
     let details = app.buttons["activity.details"].firstMatch
-    XCTAssertTrue(details.waitForExistence(timeout: 10))
+    for _ in 0..<12 {
+      if details.exists && details.isHittable { break }
+      app.swipeUp()
+    }
+    XCTAssertTrue(details.exists && details.isHittable)
     details.tap()
+    let expandedFrame = details.frame
+    Thread.sleep(forTimeInterval: 3)
+    XCTAssertEqual(details.frame.minY, expandedFrame.minY, accuracy: 1)
+    XCTAssertEqual(details.value as? String, "Expanded")
     let screen = XCTAttachment(screenshot: app.screenshot())
     screen.name = "Activity log with export action"
     screen.lifetime = .keepAlways

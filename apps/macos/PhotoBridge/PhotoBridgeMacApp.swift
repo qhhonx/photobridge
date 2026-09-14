@@ -251,7 +251,7 @@ struct ReceiverPage: View {
       HStack(spacing: 20) {
         Image(systemName: "externaldrive.badge.wifi").font(.system(size: 38)).foregroundStyle(.blue)
         VStack(alignment: .leading, spacing: 8) {
-          Text(model.pairing == nil ? "receiver_unpaired" : "receiver_paired").font(.headline)
+          ReceiverStatusIndicator(model: model)
           if let pairing = model.pairing {
             if let peer = model.peerDevice { Text(peer.name).font(.title2) }
             Text(pairing.endpoint).font(.callout.monospaced()).foregroundStyle(.secondary)

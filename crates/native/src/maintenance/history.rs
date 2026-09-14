@@ -100,7 +100,7 @@ impl Maintenance {
             return Err(Error::Conflict("history scan changed".into()));
         }
         for (source, revision) in sources {
-            tx.execute("INSERT INTO history_members VALUES(?1,?2,?3) ON CONFLICT(receiver,source) DO UPDATE SET revision=excluded.revision",params![receiver,source,revision]).map_err(database)?;
+            tx.execute("INSERT INTO history_members(receiver,source,revision) VALUES(?1,?2,?3) ON CONFLICT(receiver,source) DO UPDATE SET revision=excluded.revision",params![receiver,source,revision]).map_err(database)?;
             if known.get(source).is_none_or(|state| state == "failed") {
                 tx.execute(
                     "INSERT OR IGNORE INTO pending_sources(receiver,source) VALUES(?1,?2)",

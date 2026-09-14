@@ -46,16 +46,12 @@ struct MacBackupPage: View {
     MacBackupSurface {
       VStack(alignment: .leading, spacing: 18) {
         HStack(alignment: .top, spacing: 16) {
-          Image(systemName: model.pairing == nil ? "externaldrive.badge.plus" : "checkmark.shield")
-            .font(.system(size: 30, weight: .regular)).foregroundStyle(.tint)
           VStack(alignment: .leading, spacing: 8) {
-            Text(model.pairing == nil ? "receiver_unpaired" : model.paused ? "backup_paused" : "backup_enabled")
-              .font(.title3.weight(.medium))
+            BackupStatusIndicator(model: model)
             if !model.ready {
-              if let message = model.message {
-                Text(message).foregroundStyle(.secondary)
+              if model.message != nil {
                 Button("retry_task") { Task { await model.open() } }
-              } else { ProgressView("backup_initializing").controlSize(.small) }
+              } else { Text("backup_initializing").foregroundStyle(.secondary) }
             } else if model.pairing == nil {
               Text("backup_pair_first").foregroundStyle(.secondary)
               Button("pair_receiver_desktop", action: pair).buttonStyle(.borderedProminent)
@@ -74,17 +70,6 @@ struct MacBackupPage: View {
             }.buttonStyle(.bordered)
           }
         }
-        if model.pairing != nil && model.summary.total > 0 {
-          ProgressView(value: Double(model.summary.received), total: Double(max(1, model.summary.total)))
-            .accessibilityLabel("transfer_summary_progress")
-        }
-        if model.waitingReason != nil || model.pendingImports > 0 { WaitingStatus(model: model) }
-        if model.waitingForNetwork {
-          Label("waiting_for_wifi", systemImage: "wifi.exclamationmark").foregroundStyle(.secondary)
-        }
-        if model.ready, let message = model.message {
-          Text(message).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
-        }
       }
     }
   }
@@ -92,7 +77,7 @@ struct MacBackupPage: View {
   private func metric(_ state: String, value: Int) -> some View {
     Button { showTransfers(state) } label: {
       VStack(alignment: .leading, spacing: 10) {
-        Label(LocalizedStringKey(state == "scanned" ? "history_title" : "state_" + state), systemImage: taskSymbol(state))
+        Label(LocalizedStringKey(state == "scanned" ? "task_title_scanned" : "state_" + state), systemImage: taskSymbol(state))
           .font(.callout).foregroundStyle(.secondary)
           .frame(height: 34, alignment: .topLeading)
         Text(value.formatted()).font(.largeTitle).monospacedDigit()

@@ -10,6 +10,8 @@ use std::{
     path::Path,
 };
 
+mod sorting;
+
 fn db(e: rusqlite::Error) -> Error {
     Error::Storage(e.to_string())
 }
@@ -36,6 +38,10 @@ pub struct Job {
     pub confirmed_bytes: u64,
     pub error_code: Option<String>,
     pub native_task_id: Option<String>,
+    #[serde(default)]
+    pub state_changed_at_ms: Option<i64>,
+    #[serde(default)]
+    pub sort_value: Option<i64>,
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Attempt {
@@ -117,6 +123,7 @@ impl Sender {
             CREATE TRIGGER IF NOT EXISTS jobs_insert_revision AFTER INSERT ON jobs BEGIN UPDATE settings SET value=value+1 WHERE key='revision'; END;
             CREATE TRIGGER IF NOT EXISTS jobs_update_revision AFTER UPDATE ON jobs BEGIN UPDATE settings SET value=value+1 WHERE key='revision'; END;
             CREATE INDEX IF NOT EXISTS jobs_source_revision ON jobs(receiver_id,json_extract(manifest,'$.source_id'),json_extract(manifest,'$.revision'));").map_err(db)?;
+        sorting::migrate(&conn)?;
         // Rust foreground tasks cannot survive a process exit. OS tasks can and must
         // be reconciled explicitly after the native scheduler has enumerated them.
         conn.execute("UPDATE jobs SET state='queued', generation=generation+1 WHERE state='running' AND native_task_id IS NULL", []).map_err(db)?;
@@ -180,6 +187,15 @@ impl Sender {
             confirmed_bytes: row.7 as u64,
             error_code: row.8,
             native_task_id: row.9,
+            state_changed_at_ms: self
+                .conn
+                .query_row(
+                    "SELECT state_changed_at_ms FROM jobs WHERE id=?1",
+                    [id],
+                    |r| r.get(0),
+                )
+                .map_err(db)?,
+            sort_value: None,
         })
     }
     /// Bounded keyset pagination; never materialize the entire library for a UI poll.
@@ -193,9 +209,23 @@ impl Sender {
         receiver: Option<&str>,
         state: Option<&str>,
     ) -> Result<Vec<Job>> {
-        let mut s = self.conn.prepare(
-            "SELECT id FROM jobs WHERE id>?1 AND (?3 IS NULL OR receiver_id=?3) AND (?4 IS NULL OR state=?4) ORDER BY id LIMIT ?2"
-        ).map_err(db)?;
+        self.list_filtered_ordered(after, limit, receiver, state, false)
+    }
+    /// Order the complete filtered result before keyset pagination.
+    pub fn list_filtered_ordered(
+        &self,
+        after: i64,
+        limit: u32,
+        receiver: Option<&str>,
+        state: Option<&str>,
+        descending: bool,
+    ) -> Result<Vec<Job>> {
+        let sql = if descending {
+            "SELECT id FROM jobs WHERE (?1=0 OR id<?1) AND (?3 IS NULL OR receiver_id=?3) AND (?4 IS NULL OR state=?4) ORDER BY id DESC LIMIT ?2"
+        } else {
+            "SELECT id FROM jobs WHERE id>?1 AND (?3 IS NULL OR receiver_id=?3) AND (?4 IS NULL OR state=?4) ORDER BY id ASC LIMIT ?2"
+        };
+        let mut s = self.conn.prepare(sql).map_err(db)?;
         let ids = s
             .query_map(params![after, limit.clamp(1, 500), receiver, state], |r| {
                 r.get::<_, i64>(0)

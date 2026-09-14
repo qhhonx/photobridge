@@ -77,7 +77,7 @@
 "pairing_connect" = "连接";
 "cancel" = "取消";
 "state_not_queued" = "尚未加入备份";
-"transfer_summary" = "已接收 %d / %d 项";
+"transfer_summary" = "传输任务共 %2$d 项 · 已接收 %1$d 项";
 "task_filter" = "状态";
 "tasks_empty_filtered" = "没有符合条件的任务";
 "load_more_tasks" = "加载更多任务";
@@ -92,13 +92,13 @@
 "desktop_pair_failed" = "未能完成配对";
 "desktop_pair_expired" = "配对二维码已过期";
 "storage_settings" = "存储与诊断";
-"storage_cache_used" = "中转缓存占用";
-"storage_disk_free" = "磁盘可用空间";
-"storage_cache_budget" = "中转缓存预算";
-"storage_min_free" = "最低可用空间";
-"storage_auto_reclaim" = "自动回收已校验的中转文件";
-"storage_reclaim_note" = "仅回收接收端已完整校验的应用中转文件。照片图库和接收端原件会保留。";
-"storage_reclaim_now" = "回收已校验的缓存";
+"storage_cache_used" = "临时文件已占用";
+"storage_disk_free" = "这台设备剩余空间";
+"storage_cache_budget" = "缓存最多占用";
+"storage_min_free" = "设备至少保留";
+"storage_auto_reclaim" = "传输完成后自动回收";
+"storage_reclaim_note" = "接收端确认已完整收到并校验文件后，自动删除这台设备的中转副本。不会删除系统图库照片或接收端文件，也不依赖云端备份状态。";
+"storage_reclaim_now" = "检查并回收缓存";
 "logs_retention" = "日志保留时间";
 "logs_days" = "%d 天";
 "logs_limit" = "日志最多保留条数";
@@ -283,7 +283,7 @@
 "state_scanned" = "已扫描";
 "history_state_not_started" = "尚未开始图库扫描";
 "history_list_explanation" = "这里展示本轮已发现的已有照片及其备份状态。已扫描不代表已接收。";
-"source_list_count" = "显示 %d / %d 张照片";
+"source_list_count" = "照片共 %2$d 项 · 当前已加载 %1$d 项";
 "source_photo_unavailable" = "照片暂不可用";
 
 "event_processing_finished" = "本轮后台准备已结束";
@@ -300,7 +300,7 @@
 "transfer_settings" = "传输设置";
 "transfer_concurrency" = "同时传输任务数";
 "transfer_concurrency_note" = "支持 1–4 个任务。调低数量时，已经开始的任务会正常完成。系统和接收端可能减少实际并发数量。";
-"task_explanation_all" = "这里展示全部传输任务及其当前结果，可通过筛选查看某个阶段。";
+"task_explanation_all" = "这里统计已准备好原件的传输任务；等待准备原件和已有照片检查记录单独列出，不计入此总数。";
 "task_explanation_preparing" = "等待从系统图库读取原件并准备传输文件；接收端不可用时会暂停准备。";
 "task_explanation_running" = "已交给系统处理的任务，包括等待开始发送、正在传输和等待接收端确认。";
 "task_explanation_queued" = "文件已准备好，正在等待空闲传输名额和接收端可用。";
@@ -312,3 +312,96 @@
 "menu_open" = "打开 PhotoBridge";
 "menu_quit" = "退出 PhotoBridge";
 "menu_backup_ready" = "备份已就绪";
+
+"task_status_count" = "共 %d 项";
+"task_loaded_count" = "已加载 %d 项，继续加载可查看其余任务";
+"backup_status_ready" = "备份状态正常";
+"backup_status_details" = "查看完整状态与提示";
+"backup_status_title" = "备份状态";
+"backup_status_close" = "完成";
+
+"task_title_scanned" = "已检查的历史照片";
+
+"backup_indicator_starting" = "正在启动";
+"backup_indicator_unpaired" = "未配对";
+"backup_indicator_paused" = "已暂停";
+"backup_indicator_attention" = "需要注意";
+"backup_indicator_network" = "等待接收端";
+"backup_indicator_active" = "备份中";
+"backup_indicator_retry" = "等待重试";
+"backup_indicator_waiting" = "等待开始";
+"backup_indicator_ready" = "已就绪";
+
+"receiver_indicator_pairing" = "正在配对";
+"receiver_indicator_attention" = "配对需处理";
+"receiver_indicator_waiting" = "连接待确认";
+"receiver_indicator_paired" = "已配对";
+"receiver_indicator_explanation" = "已保存配对信息。准备备份时会检查接收端是否可达；已配对不代表设备当前在线。";
+"backup_status_failed_count" = "有 %d 项任务需要处理，可进入失败任务查看原因并重试。";
+
+"storage_cache_description" = "照片发送前，会先在这台 iPhone、iPad 或 Mac 上准备原件和上传文件。这些临时副本占用本地缓存；此处设置不影响接收设备的空间。";
+
+"storage_cache_budget_help" = "限制 PhotoBridge 临时文件的总占用。达到上限时暂停准备更多照片，空间释放后继续；不会预先占满这些空间。";
+
+"storage_min_free_help" = "给这台设备的其他应用保留可用空间。低于此值时暂停准备照片，不会删除你的其他文件。";
+
+"storage_cache_empty" = "当前没有中转缓存，无需回收。";
+
+"storage_reclaim_running" = "正在检查缓存…";
+
+"storage_reclaim_check_help" = "只处理已收到接收端确认的副本；等待传输或仍被任务使用的文件会保留。";
+
+"storage_reclaim_none" = "当前没有符合回收条件的缓存。已有副本可能仍在等待传输或被任务使用。";
+
+"storage_reclaim_result" = "已回收 %@ 本地缓存。";
+
+"logs_live" = "实时更新 · 每 2 秒";
+"logs_load_retrying" = "更新失败 · 正在重试";
+"logs_new_count" = "有 %d 条新记录";
+"logs_latest" = "最新记录";
+
+// Transfer browser order
+"task_sort_ascending" = "正序";
+"task_sort_descending" = "倒序";
+"task_sort_task_ascending" = "按任务加入顺序 · 较早在前";
+"task_sort_task_descending" = "按任务加入顺序 · 较晚在前";
+"task_sort_preparation_ascending" = "按准备队列加入顺序 · 较早在前";
+"task_sort_preparation_descending" = "按准备队列加入顺序 · 较晚在前";
+"task_sort_scan_ascending" = "按扫描记录顺序 · 较早在前";
+"task_sort_scan_descending" = "按扫描记录顺序 · 较晚在前";
+"task_sort_display_only" = "仅调整列表显示，不按拍摄时间排序，也不改变备份顺序。";
+
+// Per-list ordering strategies
+"task_order_by_capture" = "拍摄时间";
+"task_order_capture_asc" = "拍摄时间 · 从旧到新";
+"task_order_capture_desc" = "拍摄时间 · 从新到旧";
+"task_order_by_added" = "任务加入顺序";
+"task_order_added_asc" = "任务加入顺序 · 较早在前";
+"task_order_added_desc" = "任务加入顺序 · 较晚在前";
+"task_order_by_scan" = "扫描顺序";
+"task_order_scan_asc" = "扫描顺序 · 较早在前";
+"task_order_scan_desc" = "扫描顺序 · 较晚在前";
+"task_order_by_received" = "接收完成时间";
+"task_order_received_asc" = "接收完成时间 · 从旧到新";
+"task_order_received_desc" = "接收完成时间 · 从新到旧";
+"task_order_by_failed" = "失败时间";
+"task_order_failed_asc" = "失败时间 · 从旧到新";
+"task_order_failed_desc" = "失败时间 · 从新到旧";
+"task_order_by_started" = "开始传输时间";
+"task_order_started_asc" = "开始传输时间 · 从旧到新";
+"task_order_started_desc" = "开始传输时间 · 从新到旧";
+"task_order_by_retry" = "下次重试时间";
+"task_order_retry_asc" = "下次重试时间 · 即将重试在前";
+"task_order_retry_desc" = "下次重试时间 · 较晚重试在前";
+"task_order_hint_all" = "查看全部任务；排序仅影响展示。";
+"task_order_hint_queued" = "默认新拍摄在前，便于查看接下来要备份的照片。";
+"task_order_hint_preparing" = "默认新拍摄在前；原件正在准备，尚未进入传输队列。";
+"task_order_hint_waiting" = "默认最早重试在前，便于查看哪些任务即将重试。";
+"task_order_hint_running" = "默认最早开始在前，便于留意耗时较长的传输。";
+"task_order_hint_failed" = "默认最近失败在前；旧任务未记录的时间排在最后。";
+"task_order_hint_received" = "默认新拍摄在前；也可按接收完成时间查看，未知时间排在最后。";
+"task_order_hint_paused" = "默认新拍摄在前，便于查看暂停保留的任务。";
+"task_order_hint_scanned" = "默认新拍摄在前；扫描顺序表示被图库扫描发现的先后。";
+"task_order_button" = "排序";
+"task_order_recommended" = "恢复此列表默认排序";
+"task_order_unknown" = "时间未记录";

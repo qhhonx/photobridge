@@ -28,7 +28,6 @@ struct IOSSettingsPage: View {
             Label("activity_log", systemImage: "list.bullet.rectangle")
           }
           .buttonStyle(.borderless).accessibilityIdentifier("settings.activity_log")
-          .sheet(isPresented: $logs) { ActivityLogView() }
           NavigationLink {
             Form { Section { StoragePreferences(model: model, scope: .logs) } }
               .navigationTitle("settings_log_retention").navigationBarTitleDisplayMode(.inline)
@@ -48,7 +47,7 @@ struct IOSSettingsPage: View {
           Text("PhotoBridge")
         }
       }.navigationTitle("nav_settings")
-    }
+    }.sheet(isPresented: $logs) { ActivityLogView() }
   }
 }
 

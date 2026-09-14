@@ -77,7 +77,7 @@
 "pairing_connect" = "Connect";
 "cancel" = "Cancel";
 "state_not_queued" = "Not queued";
-"transfer_summary" = "%d of %d items received";
+"transfer_summary" = "%2$d transfer tasks · %1$d received";
 "task_filter" = "Status";
 "tasks_empty_filtered" = "No matching transfers";
 "load_more_tasks" = "Load more transfers";
@@ -92,13 +92,13 @@
 "desktop_pair_failed" = "Unable to complete pairing";
 "desktop_pair_expired" = "Pairing code expired";
 "storage_settings" = "Storage and diagnostics";
-"storage_cache_used" = "Staging cache used";
-"storage_disk_free" = "Available disk space";
-"storage_cache_budget" = "Staging cache budget";
-"storage_min_free" = "Minimum free space";
-"storage_auto_reclaim" = "Reclaim verified staging files automatically";
-"storage_reclaim_note" = "Only app-owned staging files with a complete receiver receipt are removed. Your photo library and receiver originals are retained.";
-"storage_reclaim_now" = "Reclaim verified cache now";
+"storage_cache_used" = "Temporary files used";
+"storage_disk_free" = "Free space on this device";
+"storage_cache_budget" = "Maximum cache size";
+"storage_min_free" = "Keep free on this device";
+"storage_auto_reclaim" = "Reclaim after transfer";
+"storage_reclaim_note" = "After the receiver confirms complete, verified receipt, automatically remove this device’s relay copies. Library originals and receiver files are kept. Cloud backup is independent.";
+"storage_reclaim_now" = "Check and reclaim cache";
 "logs_retention" = "Keep logs for";
 "logs_days" = "%d days";
 "logs_limit" = "Maximum log entries";
@@ -283,7 +283,7 @@
 "state_scanned" = "Scanned";
 "history_state_not_started" = "Library scan has not started";
 "history_list_explanation" = "Photos discovered in this run appear here with their backup status. Scanned does not mean received.";
-"source_list_count" = "Showing %d of %d photos";
+"source_list_count" = "%2$d photos · %1$d loaded";
 "source_photo_unavailable" = "Photo unavailable";
 
 "event_processing_finished" = "Background preparation window finished";
@@ -300,7 +300,7 @@
 "transfer_settings" = "Transfers";
 "transfer_concurrency" = "Concurrent uploads";
 "transfer_concurrency_note" = "Choose 1–4 simultaneous tasks. Existing transfers finish normally after lowering this limit. The system and receiver may use fewer connections.";
-"task_explanation_all" = "All transfer tasks and their current results. Open a status filter to see one stage.";
+"task_explanation_all" = "Tasks whose original files have been prepared. Photos awaiting preparation and historical library checks are listed separately and are not included in this total.";
 "task_explanation_preparing" = "Photos waiting for their originals to be read and prepared. Preparation pauses when the receiver is unavailable.";
 "task_explanation_running" = "Tasks handed to the system: waiting to start, sending files, or waiting for receiver confirmation.";
 "task_explanation_queued" = "Files are ready and waiting for an available transfer slot and a reachable receiver.";
@@ -312,3 +312,96 @@
 "menu_open" = "Open PhotoBridge";
 "menu_quit" = "Quit PhotoBridge";
 "menu_backup_ready" = "Ready to back up";
+
+"task_status_count" = "%d items";
+"task_loaded_count" = "%d loaded. Load more to see the remaining tasks.";
+"backup_status_ready" = "No backup issues";
+"backup_status_details" = "View status and messages";
+"backup_status_title" = "Backup status";
+"backup_status_close" = "Done";
+
+"task_title_scanned" = "Historical photos checked";
+
+"backup_indicator_starting" = "Starting";
+"backup_indicator_unpaired" = "Not paired";
+"backup_indicator_paused" = "Paused";
+"backup_indicator_attention" = "Needs attention";
+"backup_indicator_network" = "Waiting for receiver";
+"backup_indicator_active" = "Backing up";
+"backup_indicator_retry" = "Waiting to retry";
+"backup_indicator_waiting" = "Waiting";
+"backup_indicator_ready" = "Ready";
+
+"receiver_indicator_pairing" = "Pairing";
+"receiver_indicator_attention" = "Pairing issue";
+"receiver_indicator_waiting" = "Connection pending";
+"receiver_indicator_paired" = "Paired";
+"receiver_indicator_explanation" = "Pairing information is saved. Reachability is checked when preparing backups; paired does not mean the receiver is currently online.";
+"backup_status_failed_count" = "%d tasks need attention. Open Failed tasks to review and retry.";
+
+"storage_cache_description" = "Before sending, PhotoBridge prepares originals and upload files on this iPhone, iPad or Mac. These temporary copies use local storage. These settings do not control receiver storage.";
+
+"storage_cache_budget_help" = "Limits temporary files used by PhotoBridge. Preparation pauses at the limit and resumes when space is available. This space is not reserved in advance.";
+
+"storage_min_free_help" = "Keeps room for other apps on this device. Preparation pauses below this amount; your other files are not deleted.";
+
+"storage_cache_empty" = "No relay cache is currently stored. Nothing to reclaim.";
+
+"storage_reclaim_running" = "Checking cache…";
+
+"storage_reclaim_check_help" = "Only copies acknowledged by the receiver are reclaimed. Pending files and files still used by a task are kept.";
+
+"storage_reclaim_none" = "No eligible cache to reclaim. Remaining files may be awaiting transfer or still in use.";
+
+"storage_reclaim_result" = "Reclaimed %@ of local cache.";
+
+"logs_live" = "Live · every 2 seconds";
+"logs_load_retrying" = "Update failed · retrying";
+"logs_new_count" = "%d new records";
+"logs_latest" = "Latest records";
+
+// Transfer browser order
+"task_sort_ascending" = "Ascending";
+"task_sort_descending" = "Descending";
+"task_sort_task_ascending" = "Task entry order · earlier first";
+"task_sort_task_descending" = "Task entry order · later first";
+"task_sort_preparation_ascending" = "Preparation entry order · earlier first";
+"task_sort_preparation_descending" = "Preparation entry order · later first";
+"task_sort_scan_ascending" = "Scan record order · earlier first";
+"task_sort_scan_descending" = "Scan record order · later first";
+"task_sort_display_only" = "Display order only. Capture dates and the backup schedule are unchanged.";
+
+// Per-list ordering strategies
+"task_order_by_capture" = "Capture time";
+"task_order_capture_asc" = "Capture time · oldest first";
+"task_order_capture_desc" = "Capture time · newest first";
+"task_order_by_added" = "Task entry order";
+"task_order_added_asc" = "Task entry order · earlier first";
+"task_order_added_desc" = "Task entry order · later first";
+"task_order_by_scan" = "Scan order";
+"task_order_scan_asc" = "Scan order · earlier first";
+"task_order_scan_desc" = "Scan order · later first";
+"task_order_by_received" = "Receipt time";
+"task_order_received_asc" = "Receipt time · oldest first";
+"task_order_received_desc" = "Receipt time · newest first";
+"task_order_by_failed" = "Failure time";
+"task_order_failed_asc" = "Failure time · oldest first";
+"task_order_failed_desc" = "Failure time · newest first";
+"task_order_by_started" = "Start time";
+"task_order_started_asc" = "Start time · oldest first";
+"task_order_started_desc" = "Start time · newest first";
+"task_order_by_retry" = "Next retry time";
+"task_order_retry_asc" = "Next retry time · soonest first";
+"task_order_retry_desc" = "Next retry time · latest first";
+"task_order_hint_all" = "Browse every task; sorting changes the display only.";
+"task_order_hint_queued" = "New captures first by default, to inspect upcoming backups.";
+"task_order_hint_preparing" = "New captures first by default; originals are still being prepared.";
+"task_order_hint_waiting" = "Soonest retry first by default, to see what will retry next.";
+"task_order_hint_running" = "Earliest start first by default, to spot long-running transfers.";
+"task_order_hint_failed" = "Latest failure first by default; unrecorded times come last.";
+"task_order_hint_received" = "New captures first by default; switch to receipt time to review completions. Unknown times come last.";
+"task_order_hint_paused" = "New captures first by default, to review paused tasks.";
+"task_order_hint_scanned" = "New captures first by default; scan order reflects when items were discovered.";
+"task_order_button" = "Sort";
+"task_order_recommended" = "Use list default";
+"task_order_unknown" = "Time not recorded";

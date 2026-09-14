@@ -156,6 +156,15 @@ impl Maintenance {
             )
             .map_err(database)?;
         }
+        let history_date: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('history_members') WHERE name='created_at_ms')", [], |r|r.get(0)).map_err(database)?;
+        if !history_date {
+            conn.execute(
+                "ALTER TABLE history_members ADD COLUMN created_at_ms INTEGER",
+                [],
+            )
+            .map_err(database)?;
+        }
+        conn.execute("CREATE INDEX IF NOT EXISTS history_capture_order ON history_members(receiver,created_at_ms,source)", []).map_err(database)?;
         conn.execute("CREATE INDEX IF NOT EXISTS pending_capture_order ON pending_sources(receiver,created_at_ms DESC,source)", []).map_err(database)?;
         let has_context: bool = conn
             .query_row(
@@ -277,13 +286,24 @@ impl Maintenance {
     }
     /// Read-only, receiver-scoped browsing includes delayed preparation retries.
     pub fn source_page(&self, receiver: &str, history: bool, after: i64) -> Result<Value> {
+        self.source_page_ordered(receiver, history, after, false)
+    }
+    pub fn source_page_ordered(
+        &self,
+        receiver: &str,
+        history: bool,
+        after: i64,
+        descending: bool,
+    ) -> Result<Value> {
         let tx = self.conn.unchecked_transaction().map_err(database)?;
+        let comparison = if descending { "<" } else { ">" };
+        let direction = if descending { "DESC" } else { "ASC" };
         let (count_sql, page_sql) = if history {
             ("SELECT COUNT(*) FROM history_members WHERE receiver=?1",
-             "SELECT h.rowid,h.source,h.revision,p.retry_at FROM history_members h LEFT JOIN pending_sources p ON p.receiver=h.receiver AND p.source=h.source WHERE h.receiver=?1 AND h.rowid>?2 ORDER BY h.rowid LIMIT 100")
+             format!("SELECT h.rowid,h.source,h.revision,p.retry_at FROM history_members h LEFT JOIN pending_sources p ON p.receiver=h.receiver AND p.source=h.source WHERE h.receiver=?1 AND (?2=0 OR h.rowid{comparison}?2) ORDER BY h.rowid {direction} LIMIT 100"))
         } else {
             ("SELECT COUNT(*) FROM pending_sources WHERE receiver=?1",
-             "SELECT rowid,source,'',retry_at FROM pending_sources WHERE receiver=?1 AND rowid>?2 ORDER BY rowid LIMIT 100")
+             format!("SELECT rowid,source,'',retry_at FROM pending_sources WHERE receiver=?1 AND (?2=0 OR rowid{comparison}?2) ORDER BY rowid {direction} LIMIT 100"))
         };
         let total: i64 = tx
             .query_row(count_sql, [receiver], |r| r.get(0))
@@ -298,13 +318,94 @@ impl Maintenance {
             .map_err(database)?;
         let rows =
             {
-                let mut query = tx.prepare(page_sql).map_err(database)?;
+                let mut query = tx.prepare(&page_sql).map_err(database)?;
                 let rows = query.query_map(params![receiver, after], |r| Ok(json!({
                 "cursor": r.get::<_,i64>(0)?, "source": r.get::<_,String>(1)?,
                 "revision": r.get::<_,String>(2)?, "retry_at": r.get::<_,Option<i64>>(3)?
             }))).map_err(database)?.collect::<std::result::Result<Vec<_>,_>>().map_err(database)?;
                 rows
             };
+        tx.commit().map_err(database)?;
+        Ok(json!({"total":total,"run":run,"items":rows}))
+    }
+    pub fn missing_browse_dates(&self, receiver: &str, history: bool) -> Result<Vec<String>> {
+        let table = if history {
+            "history_members"
+        } else {
+            "pending_sources"
+        };
+        let mut stmt = self
+            .conn
+            .prepare(&format!(
+                "SELECT source FROM {table} WHERE receiver=?1 AND created_at_ms IS NULL LIMIT 200"
+            ))
+            .map_err(database)?;
+        let rows = stmt
+            .query_map([receiver], |r| r.get(0))
+            .map_err(database)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(database)?;
+        Ok(rows)
+    }
+    pub fn source_page_sorted(
+        &self,
+        receiver: &str,
+        history: bool,
+        after: i64,
+        after_value: Option<i64>,
+        sort: &str,
+        descending: bool,
+    ) -> Result<Value> {
+        if sort != "capture" && sort != "added" {
+            return Err(Error::Invalid("source sort".into()));
+        }
+        let table = if history {
+            "history_members"
+        } else {
+            "pending_sources"
+        };
+        let raw = if sort == "capture" {
+            "created_at_ms"
+        } else {
+            "rowid"
+        };
+        let unknown = if descending { i64::MIN } else { i64::MAX };
+        let value = format!("CASE WHEN {raw}>0 THEN {raw} ELSE {unknown} END");
+        let direction = if descending { "DESC" } else { "ASC" };
+        let comparison = if descending { "<" } else { ">" };
+        let cursor = if after == 0 {
+            0
+        } else {
+            after_value.ok_or_else(|| Error::Invalid("sort cursor".into()))?
+        };
+        let tx = self.conn.unchecked_transaction().map_err(database)?;
+        let total: i64 = tx
+            .query_row(
+                &format!("SELECT COUNT(*) FROM {table} WHERE receiver=?1"),
+                [receiver],
+                |r| r.get(0),
+            )
+            .map_err(database)?;
+        let run: Option<i64> = tx
+            .query_row(
+                "SELECT run FROM history_runs WHERE receiver=?1",
+                [receiver],
+                |r| r.get(0),
+            )
+            .optional()
+            .map_err(database)?;
+        let revision = if history { "revision" } else { "''" };
+        let retry = if history {
+            "(SELECT retry_at FROM pending_sources p WHERE p.receiver=history_members.receiver AND p.source=history_members.source)"
+        } else {
+            "retry_at"
+        };
+        let sql=format!("SELECT rowid,source,{revision},{retry},created_at_ms,{value} FROM {table} WHERE receiver=?1 AND (?2=0 OR ({value},rowid){comparison}(?3,?2)) ORDER BY {value} {direction},rowid {direction} LIMIT 100");
+        let rows = {
+            let mut stmt = tx.prepare(&sql).map_err(database)?;
+            let rows=stmt.query_map(params![receiver,after,cursor],|r|Ok(json!({"cursor":r.get::<_,i64>(0)?,"source":r.get::<_,String>(1)?,"revision":r.get::<_,String>(2)?,"retry_at":r.get::<_,Option<i64>>(3)?,"created_at_ms":r.get::<_,Option<i64>>(4)?,"sort_value":r.get::<_,i64>(5)?}))).map_err(database)?.collect::<std::result::Result<Vec<_>,_>>().map_err(database)?;
+            rows
+        };
         tx.commit().map_err(database)?;
         Ok(json!({"total":total,"run":run,"items":rows}))
     }
@@ -340,6 +441,11 @@ impl Maintenance {
         let tx = self.conn.unchecked_transaction().map_err(database)?;
         for (source, date) in dates {
             tx.execute(
+                "UPDATE history_members SET created_at_ms=?3 WHERE receiver=?1 AND source=?2",
+                params![receiver, source, date],
+            )
+            .map_err(database)?;
+            tx.execute(
                 "UPDATE pending_sources SET created_at_ms=?3 WHERE receiver=?1 AND source=?2",
                 params![receiver, source, date],
             )
@@ -367,21 +473,36 @@ impl Maintenance {
         Ok(())
     }
     pub fn events(&self) -> Result<Value> {
+        self.event_update(None)
+    }
+    /// Cursor queries decode only new records. Retention bounds let clients
+    /// discard expired entries without downloading the entire journal again.
+    pub fn event_update(&self, after: Option<i64>) -> Result<Value> {
         self.prune()?;
-        let mut s = self
-            .conn
-            .prepare("SELECT ts,code,job_id,amount,context FROM events ORDER BY id DESC LIMIT ?1")
+        let tx = self.conn.unchecked_transaction().map_err(database)?;
+        let (oldest, newest): (Option<i64>, Option<i64>) = tx
+            .query_row("SELECT MIN(id),MAX(id) FROM events", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
             .map_err(database)?;
-        let rows = s.query_map([self.settings.log_limit], |r| {
-            let context = r.get::<_,Option<String>>(4)?;
-            let context = context.map(|s| serde_json::from_str::<EventContext>(&s)).transpose()
-                .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e)))?;
-            Ok(json!({"timestamp":r.get::<_,i64>(0)?,"code":r.get::<_,String>(1)?,"job_id":r.get::<_,Option<i64>>(2)?,"bytes":r.get::<_,Option<i64>>(3)?,"context":context}))
-        }).map_err(database)?;
-        Ok(Value::Array(
+        let reset = after.is_some_and(|cursor| cursor > newest.unwrap_or(0));
+        let cursor = if reset { 0 } else { after.unwrap_or(0) };
+        let entries = {
+            let mut s = tx.prepare("SELECT ts,code,job_id,amount,context,id FROM events WHERE id>?1 ORDER BY id DESC LIMIT ?2").map_err(database)?;
+            let rows = s.query_map(params![cursor, self.settings.log_limit], |r| {
+                let context = r.get::<_,Option<String>>(4)?;
+                let context = context.map(|s| serde_json::from_str::<EventContext>(&s)).transpose()
+                    .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::new(e)))?;
+                Ok(json!({"id":r.get::<_,i64>(5)?,"timestamp":r.get::<_,i64>(0)?,"code":r.get::<_,String>(1)?,"job_id":r.get::<_,Option<i64>>(2)?,"bytes":r.get::<_,Option<i64>>(3)?,"context":context}))
+            }).map_err(database)?;
             rows.collect::<std::result::Result<Vec<_>, _>>()
-                .map_err(database)?,
-        ))
+                .map_err(database)?
+        };
+        tx.commit().map_err(database)?;
+        if after.is_none() {
+            return Ok(Value::Array(entries));
+        }
+        Ok(json!({"entries":entries,"oldest_id":oldest,"newest_id":newest,"reset":reset}))
     }
 }
 use rusqlite::OptionalExtension;
@@ -543,6 +664,51 @@ mod tests {
     use photobridge_sender::JobState;
     use std::sync::atomic::{AtomicU64, Ordering};
     static SEQ: AtomicU64 = AtomicU64::new(0);
+    #[test]
+    fn event_ids_survive_new_entries_and_distinguish_identical_events() {
+        let root = Temp::new();
+        let m = Maintenance::open(&root.0).unwrap();
+        m.log("sender_started", None, None).unwrap();
+        m.log("sender_started", None, None).unwrap();
+        let before = m.events().unwrap();
+        assert_ne!(before[0]["id"], before[1]["id"]);
+        m.log("app_foreground", None, None).unwrap();
+        let after = m.events().unwrap();
+        assert_eq!(before[0]["id"], after[1]["id"]);
+        assert_eq!(before[1]["id"], after[2]["id"]);
+    }
+
+    #[test]
+    fn event_cursor_returns_only_new_records_and_reports_retention() {
+        let root = Temp::new();
+        let m = Maintenance::open(&root.0).unwrap();
+        m.log("sender_started", None, None).unwrap();
+        let first = m.event_update(Some(0)).unwrap();
+        let cursor = first["newest_id"].as_i64().unwrap();
+        assert_eq!(first["entries"].as_array().unwrap().len(), 1);
+        assert_eq!(first["reset"], false);
+        m.log("app_foreground", None, None).unwrap();
+        let next = m.event_update(Some(cursor)).unwrap();
+        assert_eq!(next["entries"].as_array().unwrap().len(), 1);
+        assert_eq!(next["entries"][0]["code"], "app_foreground");
+        let newest = next["newest_id"].as_i64().unwrap();
+        assert!(m.event_update(Some(newest)).unwrap()["entries"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        assert_eq!(m.events().unwrap().as_array().unwrap().len(), 2);
+        m.conn
+            .execute("UPDATE events SET ts=0 WHERE id=?1", [cursor])
+            .unwrap();
+        let retained = m.event_update(Some(newest)).unwrap();
+        assert_eq!(retained["oldest_id"], newest);
+        assert!(retained["entries"].as_array().unwrap().is_empty());
+        m.conn.execute("DELETE FROM events", []).unwrap();
+        let empty = m.event_update(Some(newest)).unwrap();
+        assert_eq!(empty["reset"], true);
+        assert!(empty["newest_id"].is_null());
+    }
+
     #[test]
     fn diagnostics_migrate_old_logs_and_reject_private_text() {
         let root = Temp::new();
@@ -918,6 +1084,119 @@ mod tests {
         let next = m.history_control("a", HistoryAction::Start).unwrap().run;
         assert_ne!(run, next);
         assert_eq!(m.source_page("a", true, 0).unwrap()["total"], 0);
+    }
+    #[test]
+    fn source_browser_direction_covers_all_pages_and_survives_deleted_cursor() {
+        let t = Temp::new();
+        let m = Maintenance::open(&t.0).unwrap();
+        let sources = (0..205).map(|n| format!("asset-{n}")).collect::<Vec<_>>();
+        m.schedule_sources("a", &sources).unwrap();
+        m.schedule_sources("b", &["private-b".into()]).unwrap();
+        let run = m.history_control("a", HistoryAction::Start).unwrap().run;
+        let members = sources
+            .iter()
+            .map(|s| (s.clone(), "42".into()))
+            .collect::<Vec<_>>();
+        for (i, chunk) in members.chunks(200).enumerate() {
+            m.history_batch("a", run, chunk, &BTreeMap::new(), i == 1)
+                .unwrap();
+        }
+        for history in [false, true] {
+            let mut orders = Vec::new();
+            for descending in [false, true] {
+                let mut cursor = 0;
+                let mut names = Vec::new();
+                loop {
+                    let page = m
+                        .source_page_ordered("a", history, cursor, descending)
+                        .unwrap();
+                    assert_eq!(page["total"], 205);
+                    let items = page["items"].as_array().unwrap();
+                    if items.is_empty() {
+                        break;
+                    }
+                    cursor = items.last().unwrap()["cursor"].as_i64().unwrap();
+                    names.extend(
+                        items
+                            .iter()
+                            .map(|item| item["source"].as_str().unwrap().to_owned()),
+                    );
+                }
+                assert_eq!(names.len(), 205);
+                orders.push(names);
+            }
+            assert_eq!(orders[0], sources);
+            assert_eq!(orders[1], sources.iter().rev().cloned().collect::<Vec<_>>());
+        }
+        let first = m.source_page_ordered("a", false, 0, true).unwrap();
+        let cursor = first["items"][99]["cursor"].as_i64().unwrap();
+        let source = first["items"][99]["source"].as_str().unwrap();
+        m.source_result("a", source, true).unwrap();
+        let second = m.source_page_ordered("a", false, cursor, true).unwrap();
+        assert_eq!(second["items"][0]["source"], "asset-104");
+        assert_eq!(second["total"], 204);
+    }
+    #[test]
+    fn source_capture_sort_hydrates_history_and_keeps_unknown_dates_last() {
+        let t = Temp::new();
+        let m = Maintenance::open(&t.0).unwrap();
+        let sources = (0..205).map(|n| format!("s-{n}")).collect::<Vec<_>>();
+        m.schedule_sources("r", &sources).unwrap();
+        let run = m.history_control("r", HistoryAction::Start).unwrap().run;
+        for (i, chunk) in sources.chunks(200).enumerate() {
+            let members = chunk
+                .iter()
+                .map(|s| (s.clone(), "9999999".into()))
+                .collect::<Vec<_>>();
+            m.history_batch("r", run, &members, &BTreeMap::new(), i == 1)
+                .unwrap();
+        }
+        assert_eq!(m.missing_browse_dates("r", true).unwrap().len(), 200);
+        let dates = sources
+            .iter()
+            .enumerate()
+            .map(|(n, s)| {
+                (
+                    s.clone(),
+                    if n == 0 { 0 } else { (n as i64 / 3 + 1) * 1000 },
+                )
+            })
+            .collect::<Vec<_>>();
+        for chunk in dates.chunks(200) {
+            m.source_dates("r", chunk).unwrap();
+        }
+        assert!(m.missing_browse_dates("r", true).unwrap().is_empty());
+        for history in [false, true] {
+            for descending in [false, true] {
+                let mut cursor = 0;
+                let mut value = None;
+                let mut all = Vec::new();
+                loop {
+                    let page = m
+                        .source_page_sorted("r", history, cursor, value, "capture", descending)
+                        .unwrap();
+                    let items = page["items"].as_array().unwrap();
+                    if items.is_empty() {
+                        break;
+                    }
+                    let last = items.last().unwrap();
+                    cursor = last["cursor"].as_i64().unwrap();
+                    value = last["sort_value"].as_i64();
+                    all.extend(items.iter().cloned());
+                }
+                assert_eq!(all.len(), 205);
+                assert_eq!(all.last().unwrap()["source"], "s-0");
+                let dates = all[..204]
+                    .iter()
+                    .map(|v| v["created_at_ms"].as_i64().unwrap())
+                    .collect::<Vec<_>>();
+                assert!(dates.windows(2).all(|v| if descending {
+                    v[0] >= v[1]
+                } else {
+                    v[0] <= v[1]
+                }));
+            }
+        }
     }
     #[test]
     fn journal_is_bounded_private_and_settings_persist() {

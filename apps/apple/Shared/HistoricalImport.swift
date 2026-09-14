@@ -158,9 +158,11 @@ struct HistoricalImportProgress: View {
 struct SourceBrowser: View {
   @ObservedObject var model: BackupModel
   let history: Bool
+  var descending = false
+  var sort = "added"
   @StateObject private var browser = SourceBrowserModel()
   private var queryID: String {
-    "\(history)|\(model.pairing?.receiverID ?? "")|\(model.queueRevision)|\(model.pendingImports)|\(model.importingSourceID ?? "")|\(model.historicalImport?.run ?? 0)|\(model.historicalImport?.checked ?? 0)|\(model.historicalImport?.state ?? "")"
+    "\(history)|\(descending)|\(sort)|\(model.pairing?.receiverID ?? "")|\(model.queueRevision)|\(model.pendingImports)|\(model.importingSourceID ?? "")|\(model.historicalImport?.run ?? 0)|\(model.historicalImport?.checked ?? 0)|\(model.historicalImport?.state ?? "")"
   }
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -195,8 +197,11 @@ struct SourceBrowser: View {
     }.task(id: queryID) { await refresh() }
   }
   private func refresh() async {
-    await browser.refresh(receiver: model.pairing?.receiverID, history: history,
-      run: model.historicalImport?.run)
+    let receiver = model.pairing?.receiverID
+    await browser.refresh(receiver: receiver, history: history, run: model.historicalImport?.run, descending: descending, sort: sort)
+    guard !Task.isCancelled, receiver == model.pairing?.receiverID, !browser.failed else { return }
+    if history { await model.refreshHistoricalImport() }
+    else { model.pendingImports = browser.total }
   }
 }
 
@@ -206,6 +211,8 @@ struct SourceBrowserItem: Decodable, Identifiable, Equatable {
   let revision: String
   let retry_at: Int64?
   let state: String?
+  var sort_value: Int64? = nil
+  var created_at_ms: Int64? = nil
   var id: String { source }
 }
 
@@ -218,6 +225,8 @@ struct SourceBrowserItem: Decodable, Identifiable, Equatable {
   private var receiver: String?
   private var history = false
   private var run: Int64?
+  private var descending = false
+  private var sort = "added"
   private var limit = 100
   private var generation = 0
   private struct Page: Decodable {
@@ -228,12 +237,14 @@ struct SourceBrowserItem: Decodable, Identifiable, Equatable {
   func loadMore() async {
     guard !loading else { return }
     limit += 100
-    await refresh(receiver: receiver, history: history, run: run)
+    await refresh(receiver: receiver, history: history, run: run, descending: descending, sort: sort)
   }
-  func refresh(receiver: String?, history: Bool, run: Int64?) async {
-    if self.receiver != receiver || self.history != history || (history && self.run != run) {
+  func refresh(receiver: String?, history: Bool, run: Int64?, descending: Bool = false, sort: String = "added") async {
+    if self.receiver != receiver || self.history != history || self.descending != descending || self.sort != sort || (history && self.run != run) {
       items = []; total = 0; hasMore = false; limit = 100
     }
+    self.descending = descending
+    self.sort = sort
     self.receiver = receiver; self.history = history; self.run = run
     generation += 1
     let expected = generation
@@ -241,13 +252,36 @@ struct SourceBrowserItem: Decodable, Identifiable, Equatable {
     loading = true; failed = false
     defer { if generation == expected { loading = false } }
     do {
+      if sort == "capture" {
+        // Metadata only, in bounded batches off the main actor. Keep missing
+        // PhotoKit dates as 0 so they remain unknown rather than using revision.
+        while !Task.isCancelled {
+          let data = try await Bridge.call(["op": "missing_browse_dates", "receiver_id": receiver, "history": history])
+          let ids = try JSONDecoder().decode([String].self, from: data)
+          if ids.isEmpty { break }
+          let dates = await Task.detached(priority: .utility) {
+            let assets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: photoLibraryFetchOptions())
+            var found: [String: Int64] = [:]
+            assets.enumerateObjects { asset, _, _ in
+              found[asset.localIdentifier] = asset.creationDate.map { Int64($0.timeIntervalSince1970 * 1000) } ?? 0
+            }
+            return ids.map { ($0, found[$0] ?? 0) }
+          }.value
+          guard expected == generation, !Task.isCancelled else { return }
+          _ = try await Bridge.call(["op": "source_dates", "receiver_id": receiver, "dates": dates.map { [$0.0, $0.1] as [Any] }])
+        }
+        guard expected == generation, !Task.isCancelled else { return }
+      }
       var result: [SourceBrowserItem] = []
       var cursor: Int64 = 0
+      var afterValue: Int64?
       var total = 0
       var firstRun: Int64?
       repeat {
-        let data = try await Bridge.call(["op": "browse_sources", "receiver_id": receiver,
-          "history": history, "after": cursor])
+        var query: [String: Any] = ["op": "browse_sources", "receiver_id": receiver,
+          "history": history, "after": cursor, "descending": descending, "sort": sort]
+        if let afterValue { query["after_value"] = afterValue }
+        let data = try await Bridge.call(query)
         let page = try JSONDecoder().decode(Page.self, from: data)
         guard expected == generation, !Task.isCancelled else { return }
         if cursor == 0 { firstRun = page.run }
@@ -257,6 +291,7 @@ struct SourceBrowserItem: Decodable, Identifiable, Equatable {
         total = page.total
         guard page.items.count == 100, let last = page.items.last else { break }
         cursor = last.cursor
+        afterValue = last.sort_value
       } while result.count < limit
       if items != result { items = result }
       self.total = total

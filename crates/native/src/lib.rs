@@ -444,6 +444,16 @@ enum Command {
         history: bool,
         #[serde(default)]
         after: i64,
+        #[serde(default)]
+        descending: bool,
+        #[serde(default)]
+        sort: Option<String>,
+        #[serde(default)]
+        after_value: Option<i64>,
+    },
+    MissingBrowseDates {
+        receiver_id: String,
+        history: bool,
     },
     PendingSources {
         receiver_id: String,
@@ -466,6 +476,7 @@ enum Command {
     },
     ActivityLog {
         receiver: bool,
+        after: Option<i64>,
     },
     RecordEvent {
         receiver: bool,
@@ -571,6 +582,17 @@ enum Command {
         after: i64,
         receiver_id: Option<String>,
         state: Option<String>,
+        #[serde(default)]
+        descending: bool,
+        #[serde(default)]
+        sort: Option<String>,
+        #[serde(default)]
+        after_value: Option<i64>,
+    },
+    StartReceiver {
+        root: PathBuf,
+        listen: SocketAddr,
+        capacity: u64,
     },
     WritePhotoDate {
         source: PathBuf,
@@ -578,11 +600,6 @@ enum Command {
         date: String,
         #[serde(default)]
         subsecond: u16,
-    },
-    StartReceiver {
-        root: PathBuf,
-        listen: SocketAddr,
-        capacity: u64,
     },
     PackageMotion {
         jpeg: PathBuf,
@@ -805,17 +822,37 @@ fn dispatch(command: Command) -> Result<Value> {
                 .schedule_sources(&receiver_id, &sources)?;
             Ok(json!({}))
         }
+        Command::MissingBrowseDates {
+            receiver_id,
+            history,
+        } => Ok(json!(sender()?
+            .maintenance
+            .lock()
+            .map_err(lock)?
+            .missing_browse_dates(&receiver_id, history)?)),
         Command::BrowseSources {
             receiver_id,
             history,
             after,
+            descending,
+            sort,
+            after_value,
         } => {
             let host = sender()?;
-            let mut page =
-                host.maintenance
-                    .lock()
-                    .map_err(lock)?
-                    .source_page(&receiver_id, history, after)?;
+            let maintenance = host.maintenance.lock().map_err(lock)?;
+            let mut page = if let Some(sort) = sort {
+                maintenance.source_page_sorted(
+                    &receiver_id,
+                    history,
+                    after,
+                    after_value,
+                    &sort,
+                    descending,
+                )?
+            } else {
+                maintenance.source_page_ordered(&receiver_id, history, after, descending)?
+            };
+            drop(maintenance);
             if history {
                 let items = page["items"]
                     .as_array_mut()
@@ -918,7 +955,7 @@ fn dispatch(command: Command) -> Result<Value> {
                 .configure_storage(settings.receiver_budget_bytes, settings.min_free_bytes)?;
             Ok(json!({}))
         }
-        Command::ActivityLog { receiver } => {
+        Command::ActivityLog { receiver, after } => {
             if receiver {
                 let h = HOSTS.lock().map_err(lock)?;
                 let value = h
@@ -928,10 +965,14 @@ fn dispatch(command: Command) -> Result<Value> {
                     .maintenance
                     .lock()
                     .map_err(lock)?
-                    .events()?;
+                    .event_update(after)?;
                 Ok(value)
             } else {
-                sender()?.maintenance.lock().map_err(lock)?.events()
+                sender()?
+                    .maintenance
+                    .lock()
+                    .map_err(lock)?
+                    .event_update(after)
             }
         }
         Command::RecordEvent {
@@ -1141,14 +1182,31 @@ fn dispatch(command: Command) -> Result<Value> {
             after,
             receiver_id,
             state,
+            descending,
+            sort,
+            after_value,
         } => {
             let host = sender()?;
-            let jobs = host.sender.lock().map_err(lock)?.list_filtered(
-                after,
-                200,
-                receiver_id.as_deref(),
-                state.as_deref(),
-            )?;
+            let sender = host.sender.lock().map_err(lock)?;
+            let jobs = if let Some(sort) = sort {
+                sender.browse(
+                    after,
+                    after_value,
+                    200,
+                    receiver_id.as_deref(),
+                    state.as_deref(),
+                    &sort,
+                    descending,
+                )?
+            } else {
+                sender.list_filtered_ordered(
+                    after,
+                    200,
+                    receiver_id.as_deref(),
+                    state.as_deref(),
+                    descending,
+                )?
+            };
             Ok(serde_json::to_value(jobs)?)
         }
         Command::StartReceiver {
