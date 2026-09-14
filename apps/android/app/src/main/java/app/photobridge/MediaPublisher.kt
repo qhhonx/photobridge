@@ -37,8 +37,11 @@ internal object MediaPublisher {
         val filename = resource.getString("filename")
         val extension = filename.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
         val source = File(item.getJSONObject("resources").getString(resource.getString("sha256")))
-        return publishFile(context, source, "PB_${item.getString("id")}$extension", resource.getString("media_type"),
-            asset.optJSONObject("metadata"), existingOnly, resource.getString("sha256"))
+        val dated = MediaDates.prepare(context, source, resource.getString("media_type"), asset.optJSONObject("metadata"))
+        try {
+            return publishFile(context, dated, "PB_${item.getString("id")}$extension", resource.getString("media_type"),
+                asset.optJSONObject("metadata"), existingOnly, if (dated == source) resource.getString("sha256") else null)
+        } finally { if (dated != source) dated.delete() }
     }
     private fun ownedPending(context: Context, uri: Uri): Boolean {
         if (uri.scheme != "content" || uri.authority != "media") return false
@@ -78,6 +81,7 @@ internal object MediaPublisher {
         val collection = if (mime.startsWith("video/")) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
             else MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         val relative = "DCIM/PhotoBridge/"
+        val captured = MediaDates.captured(metadata)
         val columns = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.IS_PENDING, MediaStore.MediaColumns.OWNER_PACKAGE_NAME)
         val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=? AND ${MediaStore.MediaColumns.RELATIVE_PATH}=?"
         var destination: Uri? = null; var ready = false
@@ -96,7 +100,7 @@ internal object MediaPublisher {
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name); put(MediaStore.MediaColumns.MIME_TYPE, mime)
                 put(MediaStore.MediaColumns.RELATIVE_PATH, relative); put(MediaStore.MediaColumns.IS_PENDING, 1)
-                metadata?.optString("created_at_ms")?.toLongOrNull()?.let { put(MediaStore.Images.ImageColumns.DATE_TAKEN, it) }
+                putAll(MediaDates.values(captured))
             }
             destination = checkNotNull(resolver.insert(collection, values)) { "publication_failed" }
         }
@@ -108,7 +112,8 @@ internal object MediaPublisher {
             checkNotNull(resolver.openOutputStream(uri, "wt")).use { output -> hash(input, size) { buffer, count -> output.write(buffer, 0, count) } }
         }
         check(copied.first == expected && copied.second == size) { "gallery_copy_changed" }
-        check(resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null) == 1) { "publication_failed" }
+        MediaDates.stampPending(context, uri, captured)
+        check(resolver.update(uri, MediaDates.values(captured).apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null) == 1) { "publication_failed" }
         return verify(context, copy)
     }
 }

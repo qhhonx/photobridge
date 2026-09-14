@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+little_exif = "=0.6.23"
 photobridge-core.workspace = true
 quick-xml = "0.38"
 serde.workspace = true

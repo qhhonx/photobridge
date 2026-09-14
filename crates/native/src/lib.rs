@@ -572,6 +572,13 @@ enum Command {
         receiver_id: Option<String>,
         state: Option<String>,
     },
+    WritePhotoDate {
+        source: PathBuf,
+        output: PathBuf,
+        date: String,
+        #[serde(default)]
+        subsecond: u16,
+    },
     StartReceiver {
         root: PathBuf,
         listen: SocketAddr,
@@ -689,6 +696,15 @@ fn dispatch(command: Command) -> Result<Value> {
         } => Ok(serde_json::to_value(
             BurstMetadata::from_identifier(&identifier, primary)?.fields(),
         )?),
+        Command::WritePhotoDate {
+            source,
+            output,
+            date,
+            subsecond,
+        } => {
+            photobridge_pixel::write_photo_date(&source, &output, &date, subsecond)?;
+            Ok(json!({}))
+        }
         Command::PackageBurst {
             jpeg,
             output,

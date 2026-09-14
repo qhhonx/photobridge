@@ -35,7 +35,10 @@ internal object MotionProcessor {
             catch (_: TimeoutCancellationException) { throw IOException("video_conversion_timeout") }
             val partial = File(work, "output.motion.partial")
             if (partial.exists()) check(partial.delete()) { "storage" }
-            NativeBridge.request(JSONObject().put("op", "package_motion").put("jpeg", jpeg.path).put("mp4", mp4.path).put("output", motion.path).put("metadata", asset.optJSONObject("metadata") ?: JSONObject()))
+            val dated = MediaDates.prepare(context, jpeg, "image/jpeg", asset.optJSONObject("metadata"))
+            try {
+                NativeBridge.request(JSONObject().put("op", "package_motion").put("jpeg", dated.path).put("mp4", mp4.path).put("output", motion.path).put("metadata", asset.optJSONObject("metadata") ?: JSONObject()))
+            } finally { if (dated != jpeg) dated.delete() }
             return MediaPublisher.publishFile(context, motion, "PB_${item.getString("id")}.jpg", "image/jpeg", asset.optJSONObject("metadata"), existingOnly)
         } finally {
             listOf(jpeg, mp4, motion).forEach { it.delete() }

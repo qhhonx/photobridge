@@ -17,6 +17,13 @@ class ReceiverInstrumentation : Instrumentation() {
     private var arguments = Bundle()
     override fun onCreate(arguments: Bundle?) { this.arguments = arguments ?: Bundle(); super.onCreate(arguments); start() }
     override fun onStart() {
+        if (arguments.getString("mode") == "media_dates") {
+            val result = runCatching { checkMediaDates() }
+            finish(if (result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED, Bundle().apply {
+                putString("result", result.getOrElse { "FAIL: ${it.stackTraceToString()}" })
+            })
+            return
+        }
         if (arguments.getString("mode") == "app_updates") {
             val result = runCatching { checkAppUpdates(arguments) }
             finish(if (result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED, Bundle().apply {
@@ -92,6 +99,7 @@ class ReceiverInstrumentation : Instrumentation() {
                     else resources.put(resource(photo, "photo", "image/jpeg"))
                     if (kind == "motion") resources.put(resource(movie, "paired_video", "video/mp4"))
                     val metadata = if (kind.startsWith("burst-")) NativeBridge.request(JSONObject().put("op", "burst_metadata").put("identifier", root.name).put("primary", kind == "burst-primary")) as JSONObject else JSONObject()
+                    metadata.put("created_at_ms", "1786761701000")
                     NativeBridge.request(JSONObject().put("op", "enqueue").put("receiver_id", pairing.getString("receiver_id"))
                         .put("source_id", "fixture-$kind-${root.name}").put("revision", "1").put("kind", if (kind.startsWith("burst-")) "photo" else kind).put("metadata", metadata).put("resources", resources))
                     val job = NativeBridge.request(JSONObject().put("op", "run_sender").put("pairing", pairing)) as JSONObject
@@ -124,7 +132,9 @@ class ReceiverInstrumentation : Instrumentation() {
                     while (cursor.moveToNext()) if (publishedIds.any { cursor.getString(1).startsWith("PB_$it") }) {
                         val uri = android.content.ContentUris.withAppendedId(images, cursor.getLong(0))
                         targetContext.contentResolver.openInputStream(uri)?.use { input ->
-                            val xmp = androidx.exifinterface.media.ExifInterface(input).getAttribute(androidx.exifinterface.media.ExifInterface.TAG_XMP) ?: ""
+                            val exif = androidx.exifinterface.media.ExifInterface(input)
+                            check(exif.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_DATETIME_ORIGINAL) == "2026:08:15 02:41:41") { "publication_date_missing" }
+                            val xmp = exif.getAttribute(androidx.exifinterface.media.ExifInterface.TAG_XMP) ?: ""
                             if (xmp.contains(expectedBurst.getString("burst_group_ref"))) {
                                 burstFrames++
                                 if (xmp.contains("GCamera:BurstPrimary=\"1\"")) primaryFrames++

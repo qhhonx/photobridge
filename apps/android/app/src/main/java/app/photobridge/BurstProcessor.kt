@@ -21,8 +21,11 @@ internal object BurstProcessor {
             val jpeg = if (resource.getString("media_type") == "image/jpeg") original
                 else decoded.also { MotionProcessor.prepareStill(original, it) }
             if (partial.exists()) check(partial.delete()) { "storage" }
-            NativeBridge.request(JSONObject().put("op", "package_burst").put("jpeg", jpeg.path)
-                .put("output", output.path).put("metadata", asset.getJSONObject("metadata")))
+            val dated = MediaDates.prepare(context, jpeg, "image/jpeg", asset.getJSONObject("metadata"))
+            try {
+                NativeBridge.request(JSONObject().put("op", "package_burst").put("jpeg", dated.path)
+                    .put("output", output.path).put("metadata", asset.getJSONObject("metadata")))
+            } finally { if (dated != jpeg) dated.delete() }
             return MediaPublisher.publishFile(context, output, "PB_${item.getString("id")}.jpg", "image/jpeg", asset.getJSONObject("metadata"), existingOnly)
         } finally {
             listOf(decoded, output, partial).forEach { it.delete() }
