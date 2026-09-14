@@ -238,9 +238,12 @@
     <string name="cleanup_reviewed_help">请先在这台设备的 Google 相册中核对。本操作只恢复 PhotoBridge 传输，不删除文件，也不证明云端备份完成。自动清理会等待 15 分钟再尝试。</string>
     <string name="cleanup_threshold">可用空间低于 %1$s 时检查。清理期间暂停新增传输，结束后仍按最低可用空间限制恢复。手机需要解锁。</string>
     <string name="cleanup_threshold_unavailable">请启动接收端后读取空间阈值。</string>
-    <string name="cleanup_disclosure">PhotoBridge 使用 Android 无障碍能力浏览 Google 相册，仅在官方提示确认这些内容已安全备份时点击“释放空间”。可能涉及这台设备上其他应用的已备份照片，不只 PhotoBridge 的照片。不会点击“删除”或清空云端回收站。选中账号仅在内存中读取，本机只保存账号指纹，不保存或发送账号原文、截图或照片标签。默认关闭；绑定账号后，可开启自动清理或主动执行一次。每轮最长 5 分钟。可在此停止，或在 Android 设置关闭无障碍服务。清理结果不明时只检查，不重复点击释放。</string>
+    <string name="cleanup_disclosure">PhotoBridge 使用 Android 无障碍能力浏览 Google 相册，仅在官方提示确认这些内容已安全备份时点击“释放空间”。可能涉及这台设备上其他应用的已备份照片，不只 PhotoBridge 的照片。不会点击“删除”或清空云端回收站。选中账号仅在内存中读取，本机只保存账号指纹，不保存或发送账号原文、截图或照片标签。默认关闭；绑定账号后，可开启自动清理或主动执行一次。每轮最长 5 分钟。可在此停止，或在 Android 设置关闭无障碍服务。清理结果不明时只检查，不重复点击释放。 清理时会按需唤醒屏幕并解除无密码锁屏；设置了 PIN、密码或图案时仍需手动解锁。</string>
     <string name="cleanup_result_ready">请先绑定账号。</string>
     <string name="cleanup_result_bound">账号已绑定，可按需开启自动清理。</string>
+    <string name="cleanup_result_waking">正在唤醒屏幕并解除无密码锁屏…</string>
+    <string name="cleanup_result_unlocked">设备已解锁，正在打开 Google 相册…</string>
+    <string name="cleanup_result_unlock_failed">未能唤醒或解除锁屏，请手动解锁后重试。</string>
     <string name="cleanup_result_opening">正在打开 Google 相册…</string>
     <string name="cleanup_result_opening_menu">正在核对绑定账号并打开菜单…</string>
     <string name="cleanup_result_opening_cleanup">正在打开“释放此设备的空间”…</string>

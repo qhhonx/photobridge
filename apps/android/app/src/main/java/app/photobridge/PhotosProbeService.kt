@@ -5,6 +5,7 @@ import android.app.KeyguardManager
 import android.content.Intent
 import kotlinx.coroutines.sync.withLock
 import android.os.SystemClock
+import android.os.PowerManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.*
@@ -96,6 +97,7 @@ class PhotosProbeService : AccessibilityService() {
         if (!bind && cleanup.account.isEmpty()) { cleanup.report("account_unavailable"); return }
         mutableState.value = PhotosProbeState(connected = true, running = true, mode = if (bind) "bind" else "cleanup", observation = "opening")
         cleanupJob = scope.launch {
+            var screenLease: PowerManager.WakeLock? = null
             try {
                 ReceiverState.mediaOperations.withLock {
                     if (!bind) withContext(Dispatchers.IO) {
@@ -104,6 +106,27 @@ class PhotosProbeService : AccessibilityService() {
                             NativeBridge.request(JSONObject().put("op", "receiver_transfer_hold").put("held", true))
                         }
                     }
+                    val keyguard = getSystemService(KeyguardManager::class.java)
+                    if (CleanupUnlock.needsManualUnlock(keyguard.isKeyguardLocked, keyguard.isKeyguardSecure)) {
+                        cleanup.report("locked"); updateOperation("locked", false)
+                        return@withLock
+                    }
+                    if (keyguard.isKeyguardLocked || !getSystemService(PowerManager::class.java).isInteractive) {
+                        updateOperation("waking", true)
+                        if (!CleanupUnlock.ensureReady(this@PhotosProbeService)) {
+                            cleanup.report("unlock_failed"); updateOperation("unlock_failed", false)
+                            return@withLock
+                        }
+                        updateOperation("unlocked", true)
+                    }
+                    // The visible UI belongs to Google Photos, so our Activity's
+                    // KEEP_SCREEN_ON cannot cover it. Bound this legacy screen lease
+                    // to the operation, with an OS timeout even if our coroutine stops.
+                    @Suppress("DEPRECATION")
+                    val lease = getSystemService(PowerManager::class.java)
+                        .newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, "PhotoBridge:cleanup")
+                    lease.acquire(if (bind) 45_000L else 315_000L)
+                    screenLease = lease
                     val launch = packageManager.getLaunchIntentForPackage(PHOTOS_PACKAGE) ?: error("unavailable")
                     startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     delay(1_200)
@@ -168,6 +191,7 @@ class PhotosProbeService : AccessibilityService() {
             } catch (cancelled: CancellationException) { cleanup.report(if (cleanup.pending) "pending" else "stopped"); throw cancelled }
             catch (error: Exception) { cleanup.report(safeError(error)) }
             finally {
+                screenLease?.let { runCatching { if (it.isHeld) it.release() } }
                 mutableState.value = mutableState.value.copy(running = false, observation = cleanup.reason)
                 withContext(NonCancellable + Dispatchers.IO) { runCatching {
                     NativeBridge.request(JSONObject().put("op", "receiver_transfer_hold").put("held", cleanup.held))

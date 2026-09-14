@@ -24,6 +24,13 @@ class ReceiverInstrumentation : Instrumentation() {
             })
             return
         }
+        if (arguments.getString("mode") == "cleanup_unlock") {
+            val result = runCatching { checkCleanupUnlock() }
+            finish(if (result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED, Bundle().apply {
+                putString("result", result.getOrElse { "FAIL: ${it.stackTraceToString()}" })
+            })
+            return
+        }
         if (arguments.getString("mode") == "app_updates") {
             val result = runCatching { checkAppUpdates(arguments) }
             finish(if (result.isSuccess) Activity.RESULT_OK else Activity.RESULT_CANCELED, Bundle().apply {
