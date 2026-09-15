@@ -405,3 +405,5 @@
 "task_order_button" = "排序";
 "task_order_recommended" = "恢复此列表默认排序";
 "task_order_unknown" = "时间未记录";
+
+"event_preparation_storage_blocked" = "本地空间不足，等待继续准备照片";

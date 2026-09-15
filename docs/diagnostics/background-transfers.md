@@ -42,6 +42,21 @@ The existing `bytes` field on a submission is the immutable request-body size.
 URLSession byte counters can be zero or unavailable at particular callbacks.
 Receiver body counters and successful response status provide independent evidence.
 
+## Preparation backlog and storage
+
+An empty prepared transfer queue does not mean library backup is complete.
+`pending_imports` is reloaded from the durable source queue, including after a
+background process relaunch. `discovery_pending` describes incremental discovery
+and is not the historical-library total.
+
+Snapshots include `cache_used_bytes`, `free_bytes`, `min_free_bytes`, and
+`export_allowance` when storage has been measured. A zero export allowance blocks
+preparing the next originals even when existing requests can finish.
+`preparation_storage_blocked` records that condition during background preparation;
+`processing_finished` means the current execution window ended, not that every
+library item was backed up. Resolve the storage constraint before attributing
+this situation to OS scheduling or comparing charging conditions.
+
 ## Controlled device run
 
 1. Confirm at least one correlated successful request on both peers.

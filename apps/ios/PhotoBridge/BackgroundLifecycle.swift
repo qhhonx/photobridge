@@ -83,7 +83,9 @@ extension BackupModel {
     }, step: {
       if self.importing || self.scanningHistory { return .waiting }
       await self.refresh()
+      await self.refreshPendingImportCount()
       await self.refreshStorage()
+      await self.updatePreparationStorageState()
       // Queue only a small runway of prepared originals. The OS owns uploads.
       if self.summary.queued >= 12 {
         await BackgroundTransfer.shared.kick()

@@ -205,6 +205,7 @@ enum Bridge {
       try discovery?.matchReceiver(pairing?.receiverID)
       updateDiscoveryStatus()
       ready = true
+      await refreshPendingImportCount()
       // Initial lifecycle callbacks may arrive before storage is ready. Capture
       // the actual state now without inventing an earlier foreground transition.
       await BackgroundTransfer.shared.recordSnapshot("sender_ready")
@@ -630,6 +631,28 @@ enum Bridge {
       }
       await refreshStorage()
     } catch { storageError = error.localizedDescription }
+  }
+  /// Durable work must be loaded even when storage/network gates prevent export.
+  func refreshPendingImportCount() async {
+    guard ready, let target = pairing else { return }
+    do {
+      let data = try await Bridge.call(["op": "pending_sources", "receiver_id": target.receiverID])
+      guard pairing?.receiverID == target.receiverID else { return }
+      let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+      if let count = result?["count"] as? Int { pendingImports = count }
+    } catch { /* Preserve the last known count rather than reporting an empty queue. */ }
+  }
+  func updatePreparationStorageState() async {
+    guard let storage else { return }
+    if storage.export_allowance == 0 && (pendingImports > 0 || discoveryPending > 0) {
+      let reason = storage.reason ?? storage.limitingReason
+      if preparationReason != reason {
+        preparationReason = reason
+        await BackgroundTransfer.shared.recordSnapshot("preparation_storage_blocked")
+      }
+    } else if preparationReason == "local_free_space" || preparationReason == "local_cache_budget" {
+      preparationReason = nil
+    }
   }
   private var orderingPendingSources = false
   func processPendingImports() async {

@@ -132,9 +132,16 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     let model = BackupModel.shared
     guard model.ready else { return }
     if model.deviceSnapshot == nil { await model.refreshDeviceStatus() }
+    await model.refreshPendingImportCount()
     var context: [String: Any] = ["execution": observedExecution ?? execution,
       "paused": model.paused, "pending_imports": model.pendingImports,
       "discovery_pending": model.discoveryPending]
+    if let storage = model.storage {
+      context["cache_used_bytes"] = storage.used_bytes
+      context["free_bytes"] = storage.free_bytes
+      context["min_free_bytes"] = storage.settings.min_free_bytes
+      context["export_allowance"] = storage.export_allowance
+    }
     if let reason { context["reason"] = reason }
     if let receiver = model.pairing?.receiverID,
       let data = try? await Bridge.call(["op": "sender_summary", "receiver_id": receiver]),

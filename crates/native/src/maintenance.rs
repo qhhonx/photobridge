@@ -138,6 +138,10 @@ pub struct EventContext {
     pub bytes_received: Option<u64>,
     pub first_body_at_ms: Option<u64>,
     pub body_complete: Option<bool>,
+    pub cache_used_bytes: Option<u64>,
+    pub free_bytes: Option<u64>,
+    pub min_free_bytes: Option<u64>,
+    pub export_allowance: Option<u64>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

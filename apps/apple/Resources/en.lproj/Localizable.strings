@@ -405,3 +405,5 @@
 "task_order_button" = "Sort";
 "task_order_recommended" = "Use list default";
 "task_order_unknown" = "Time not recorded";
+
+"event_preparation_storage_blocked" = "Photo preparation is waiting for local storage";
