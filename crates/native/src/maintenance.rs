@@ -105,6 +105,47 @@ pub struct EventContext {
     pub execution: Option<Execution>,
     pub phase: Option<RequestPhase>,
     pub reason: Option<DispatchReason>,
+    pub transfer_mode: Option<TransferMode>,
+    pub request_id: Option<u64>,
+    pub task_id: Option<u64>,
+    pub generation: Option<u64>,
+    pub submitted_at_ms: Option<u64>,
+    pub observed_at_ms: Option<u64>,
+    pub submission_execution: Option<Execution>,
+    pub battery_percent: Option<u8>,
+    pub charging: Option<bool>,
+    pub low_power: Option<bool>,
+    pub thermal_state: Option<u8>,
+    pub network_available: Option<bool>,
+    pub network_wifi: Option<bool>,
+    pub network_cellular: Option<bool>,
+    pub network_expensive: Option<bool>,
+    pub network_constrained: Option<bool>,
+    pub metrics_available: Option<bool>,
+    pub transaction_count: Option<u32>,
+    pub fetch_at_ms: Option<u64>,
+    pub connect_at_ms: Option<u64>,
+    pub tls_at_ms: Option<u64>,
+    pub tls_end_at_ms: Option<u64>,
+    pub send_at_ms: Option<u64>,
+    pub sent_at_ms: Option<u64>,
+    pub response_at_ms: Option<u64>,
+    pub response_end_at_ms: Option<u64>,
+    pub metric_start_ms: Option<u64>,
+    pub metric_end_ms: Option<u64>,
+    pub connection_reused: Option<bool>,
+    pub duration_ms: Option<u64>,
+    pub bytes_received: Option<u64>,
+    pub first_body_at_ms: Option<u64>,
+    pub body_complete: Option<bool>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TransferMode {
+    Bundle,
+    ResumeChunks,
+    CacheLimitedChunks,
+    LegacyChunks,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -727,7 +768,10 @@ mod tests {
         let context: EventContext = serde_json::from_value(json!({
             "queued":12,"running":1,"waiting":3,"failed":0,"paused":false,
             "active_requests":1,"execution":"background","phase":"upload",
-            "bytes_sent":4096,"bytes_expected":8192,"next_retry_at":now()+60
+            "bytes_sent":4096,"bytes_expected":8192,"next_retry_at":now()+60,
+            "request_id":123,"task_id":7,"generation":4,"charging":false,
+            "low_power":true,"network_wifi":true,"observed_at_ms":1000,
+            "metrics_available":true,"send_at_ms":900,"transfer_mode":"cache_limited_chunks"
         }))
         .unwrap();
         maintenance
@@ -739,6 +783,12 @@ mod tests {
         assert_eq!(entries.as_array().unwrap().len(), 2);
         assert_eq!(entries[0]["context"]["queued"], 12);
         assert_eq!(entries[0]["context"]["bytes_expected"], 8192);
+        assert_eq!(entries[0]["context"]["request_id"], 123);
+        assert_eq!(entries[0]["context"]["charging"], false);
+        assert_eq!(
+            entries[0]["context"]["transfer_mode"],
+            "cache_limited_chunks"
+        );
         assert_eq!(entries[1]["job_id"], 14);
         assert!(entries[1]["context"].is_null());
         for invalid in [

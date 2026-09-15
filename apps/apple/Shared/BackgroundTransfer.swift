@@ -9,10 +9,16 @@ struct NativeAttempt: Codable {
   let jobID: Int64
   let generation: Int64
   var receiverID: String? = nil
+  var requestID: UInt64? = nil
+  var submittedAtMS: UInt64? = nil
+  var submissionExecution: String? = nil
   enum CodingKeys: String, CodingKey {
     case jobID = "job_id"
     case generation
     case receiverID = "receiver_id"
+    case requestID = "request_id"
+    case submittedAtMS = "submitted_at_ms"
+    case submissionExecution = "submission_execution"
   }
   var object: [String: Any] { ["job_id": jobID, "generation": generation] }
 }
@@ -22,10 +28,12 @@ struct NativeRequest: Decodable {
   let path: String
   let contentType: String
   let bodyFile: String
+  let transferMode: String?
   enum CodingKeys: String, CodingKey {
     case attempt, method, path
     case contentType = "content_type"
     case bodyFile = "body_file"
+    case transferMode = "transfer_mode"
   }
 }
 
@@ -39,6 +47,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
   static let identifier = "app.photobridge.uploads.v1"
   var eventsCompletion: (() -> Void)?
   var waitingForNetwork = false
+  private var requestMetrics: [Int: [String: Any]] = [:]
   private var responseBodies: [Int: Data] = [:]
   private var oversized: Set<Int> = []
   private var rejectedTrust: Set<Int> = []
@@ -46,6 +55,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
   private var finishingTasks: Set<Int> = []
   private var reconciled = false
   private var serialWork: Task<Void, Never>?
+  private var lastDecisionAt = Date.distantPast
   private var lastDecision: String?
   private var progressTracker = TaskProgressTracker()
   private var progressPublication: Task<Void, Never>?
@@ -86,7 +96,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     // URLSession delegate callbacks are explicitly delivered on the main queue.
     return URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
   }()
-  func connect() { _ = session }
+  func connect() { _ = TransferDiagnostics.shared; _ = session }
 
   // Metadata-only diagnostics: no paths, photo names, endpoints or credentials.
   func record(_ code: String, jobID: Int64? = nil, bytes: Int64? = nil,
@@ -96,7 +106,7 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     var command: [String: Any] = ["op": "record_event", "receiver": false, "code": code]
     if let jobID { command["job_id"] = jobID }
     if let bytes, bytes >= 0 { command["bytes"] = bytes }
-    if !context.isEmpty { command["context"] = context }
+    command["context"] = TransferDiagnostics.shared.snapshot().merging(context) { _, captured in captured }
     _ = try? await Bridge.call(command)
   }
   private var execution: String {
@@ -147,9 +157,10 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
   }
   private func recordDecision(_ reason: String, tasks: [URLSessionTask]) async {
     let model = BackupModel.shared
-    let key = "\(reason)|\(model.queueRevision)|\(model.pendingImports)|\(model.discoveryPending)|\(tasks.count)"
-    guard key != lastDecision else { return }
+    let key = "\(reason)|\(model.pendingImports)|\(model.discoveryPending)|\(tasks.count)"
+    guard key != lastDecision || Date().timeIntervalSince(lastDecisionAt) >= 60 else { return }
     lastDecision = key
+    lastDecisionAt = Date()
     await recordSnapshot("dispatch_waiting", reason: reason, tasks: tasks)
   }
   #if os(iOS)
@@ -283,9 +294,14 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
             native.setValue(senderDeviceType, forHTTPHeaderField: "X-PhotoBridge-Device-Type")
           }
           native.setValue(request.contentType, forHTTPHeaderField: "Content-Type")
+          let requestID = UInt64.random(in: 1...(1 << 52))
+          native.setValue(String(requestID), forHTTPHeaderField: "X-PhotoBridge-Request")
           let task = session.uploadTask(with: native, fromFile: file)
           var descriptor = request.attempt
           descriptor.receiverID = pairing.receiverID
+          descriptor.requestID = requestID
+          descriptor.submittedAtMS = TransferDiagnostics.milliseconds(Date())
+          descriptor.submissionExecution = execution
           task.taskDescription = String(
             decoding: try JSONEncoder().encode(descriptor), as: UTF8.self)
           do {
@@ -294,9 +310,11 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
               "task_id": String(task.taskIdentifier),
             ])
             let stage = request.path == "/v1/bundles" ? "bundle_submitted" : request.method == "PUT" ? "upload_submitted" : request.path.hasSuffix("/commit") ? "commit_submitted" : "manifest_submitted"
+            var submissionContext = taskContext(task, attempt: descriptor)
+            submissionContext["transfer_mode"] = request.transferMode
             await record(stage, jobID: request.attempt.jobID,
               bytes: (try? FileManager.default.attributesOfItem(atPath: file.path)[.size] as? NSNumber)?.int64Value,
-              context: ["execution": execution, "phase": phase(native) ?? "manifest"])
+              context: submissionContext)
             lastDecision = nil
             task.resume()
           } catch {
@@ -331,6 +349,22 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
       responseBodies[id, default: Data()].append(data)
     }
   }
+  private func taskContext(_ task: URLSessionTask, attempt: NativeAttempt?) -> [String: Any] {
+    var value = TransferDiagnostics.shared.snapshot()
+    value["execution"] = execution
+    value["phase"] = phase(task.originalRequest)
+    value["task_id"] = task.taskIdentifier
+    value["request_id"] = attempt?.requestID
+    value["generation"] = attempt?.generation
+    value["submitted_at_ms"] = attempt?.submittedAtMS
+    value["submission_execution"] = attempt?.submissionExecution
+    value["bytes_sent"] = max(0, task.countOfBytesSent)
+    if task.countOfBytesExpectedToSend >= 0 { value["bytes_expected"] = task.countOfBytesExpectedToSend }
+    return value
+  }
+  func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+    requestMetrics[task.taskIdentifier] = TransferDiagnostics.metrics(metrics)
+  }
   func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
     let id = task.taskIdentifier
     let body = responseBodies.removeValue(forKey: id) ?? Data()
@@ -339,6 +373,11 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
     let untrusted = rejectedTrust.remove(id) != nil && !moved
     let attempt = task.taskDescription.flatMap {
       try? JSONDecoder().decode(NativeAttempt.self, from: Data($0.utf8))
+    }
+    var capturedContext = taskContext(task, attempt: attempt)
+    capturedContext["metrics_available"] = false
+    if let metrics = requestMetrics.removeValue(forKey: id) {
+      capturedContext.merge(metrics) { _, metric in metric }
     }
     let code = (task.response as? HTTPURLResponse)?.statusCode ?? 0
     let nsError = error as NSError?
@@ -361,7 +400,8 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
       }
 
       await BackupModel.shared.open()
-      var context: [String: Any] = ["execution": self.execution, "http_status": code]
+      var context = capturedContext
+      context["http_status"] = code
       context["phase"] = self.phase(task.originalRequest)
       context["system_error"] = nsError?.code
       if let attempt {

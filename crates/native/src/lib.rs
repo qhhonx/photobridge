@@ -151,7 +151,7 @@ pub struct ReceiverHost {
     root: PathBuf,
     pub receiver: Arc<Mutex<Receiver>>,
     pub pairing: Pairing,
-    maintenance: Mutex<maintenance::Maintenance>,
+    maintenance: Arc<Mutex<maintenance::Maintenance>>,
     handle: axum_server::Handle,
     task: tokio::task::JoinHandle<()>,
 }
@@ -183,7 +183,28 @@ impl ReceiverHost {
             ident.key_pem.into_bytes(),
         )
         .await?;
-        let router = photobridge_transport::shared_router(receiver.clone(), &ident.pairing.token)?;
+        let maintenance = Arc::new(Mutex::new(maintenance));
+        let diagnostic_log = maintenance.clone();
+        let observer: photobridge_transport::Observer = Arc::new(move |event| {
+            if let Ok(log) = diagnostic_log.lock() {
+                let context = maintenance::EventContext {
+                    request_id: Some(event.request_id),
+                    observed_at_ms: Some(event.observed_at_ms),
+                    duration_ms: Some(event.duration_ms),
+                    bytes_received: Some(event.bytes_received),
+                    first_body_at_ms: event.first_body_at_ms,
+                    body_complete: Some(event.body_complete),
+                    http_status: event.status,
+                    ..Default::default()
+                };
+                let _ = log.log_context(event.event, None, None, Some(&context));
+            }
+        });
+        let router = photobridge_transport::shared_router_observed(
+            receiver.clone(),
+            &ident.pairing.token,
+            Some(observer),
+        )?;
         let listener = std::net::TcpListener::bind(addr)?;
         listener.set_nonblocking(true)?;
         let handle = axum_server::Handle::new();
@@ -197,7 +218,7 @@ impl ReceiverHost {
             root: root.into(),
             receiver,
             pairing: ident.pairing,
-            maintenance: Mutex::new(maintenance),
+            maintenance,
             handle,
             task,
         })
@@ -487,7 +508,7 @@ enum Command {
         #[serde(default)]
         bytes: Option<u64>,
         #[serde(default)]
-        context: Option<maintenance::EventContext>,
+        context: Option<Box<maintenance::EventContext>>,
     },
     ReclaimSenderCache,
     ArchiveBatch {
@@ -985,14 +1006,14 @@ fn dispatch(command: Command) -> Result<Value> {
         } => {
             if receiver {
                 receiver_storage::with_maintenance(root.as_deref(), |maintenance| {
-                    maintenance.log_context(&code, job_id, bytes, context.as_ref())
+                    maintenance.log_context(&code, job_id, bytes, context.as_deref())
                 })?;
             } else {
                 sender()?.maintenance.lock().map_err(lock)?.log_context(
                     &code,
                     job_id,
                     bytes,
-                    context.as_ref(),
+                    context.as_deref(),
                 )?;
             }
             Ok(json!({}))

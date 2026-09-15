@@ -689,3 +689,95 @@ fn maintenance_hold_preserves_offsets_and_receipts_until_resumed() {
         ReceiptState::Received
     );
 }
+
+#[tokio::test]
+async fn request_diagnostics_preserve_upload_bytes_and_ignore_private_headers() {
+    use std::sync::{Arc, Mutex};
+    let scratch = Scratch::new();
+    let receiver = Arc::new(Mutex::new(Receiver::open(&scratch.0, 1024 * 1024).unwrap()));
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let recorded = events.clone();
+    let app = photobridge_transport::shared_router_observed(
+        receiver.clone(),
+        TOKEN,
+        Some(Arc::new(move |event| recorded.lock().unwrap().push(event))),
+    )
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let host = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let client = reqwest::Client::new();
+    let (asset, resources) = asset(false);
+    let manifest = serde_json::to_vec(&asset).unwrap();
+    let response = client
+        .post(format!("{url}/v1/assets"))
+        .bearer_auth(TOKEN)
+        .header("x-photobridge-request", "123")
+        .body(manifest.clone())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let status: AssetStatus = response.json().await.unwrap();
+    let b = &resources[0];
+    let hash = &asset.resources[0].sha256;
+    let response = client
+        .put(format!(
+            "{url}/v1/assets/{}/resources/{hash}?offset=0&sha256={hash}",
+            status.asset_id
+        ))
+        .bearer_auth(TOKEN)
+        .header("x-photobridge-request", "124")
+        .body(b.clone())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let response = client
+        .post(format!("{url}/v1/assets/{}/commit", status.asset_id))
+        .bearer_auth(TOKEN)
+        .header("x-photobridge-request", "private-name@example.com")
+        .body("{}")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        receiver
+            .lock()
+            .unwrap()
+            .status(&status.asset_id)
+            .unwrap()
+            .receipt,
+        ReceiptState::Received
+    );
+    assert_eq!(fs::read(scratch.0.join("blobs").join(hash)).unwrap(), *b);
+    let before = events.lock().unwrap().len();
+    assert_eq!(
+        client
+            .post(format!("{url}/v1/assets"))
+            .header("x-photobridge-request", "125")
+            .body(manifest.clone())
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    let events = events.lock().unwrap();
+    assert_eq!(events.len(), before);
+    for (id, size) in [(123, manifest.len()), (124, b.len())] {
+        let observed: Vec<_> = events.iter().filter(|e| e.request_id == id).collect();
+        assert_eq!(observed.len(), 3);
+        assert_eq!(observed[0].event, "receiver_request_started");
+        assert_eq!(observed[1].event, "receiver_first_body");
+        assert_eq!(observed[2].event, "receiver_response_ready");
+        assert_eq!(observed[2].bytes_received, size as u64);
+        assert!(observed[2].body_complete);
+        assert_eq!(observed[2].status, Some(200));
+    }
+    assert_eq!(events.len(), 6);
+    host.abort();
+}

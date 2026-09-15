@@ -14,6 +14,7 @@ pub struct NativeRequest {
     pub path: String,
     pub content_type: String,
     pub body_file: PathBuf,
+    pub transfer_mode: &'static str,
 }
 impl SenderHost {
     pub fn set_bundle_upload(&self, receiver: &str, enabled: bool) -> Result<()> {
@@ -37,7 +38,8 @@ impl SenderHost {
             let id = job.asset.id()?;
             // Continue any already-started legacy sequence. If staging another
             // original would exceed the cache budget, use the bounded chunk path.
-            if checkpoint.is_none() && sender.bundle_upload(receiver)? {
+            let bundle_enabled = sender.bundle_upload(receiver)?;
+            if checkpoint.is_none() && bundle_enabled {
                 let bytes = bundle_size(&job.asset)?;
                 let allowance = self.storage_status()?["export_allowance"]
                     .as_u64()
@@ -63,9 +65,17 @@ impl SenderHost {
                         path: "/v1/bundles".into(),
                         content_type: BUNDLE_CONTENT_TYPE.into(),
                         body_file,
+                        transfer_mode: "bundle",
                     });
                 }
             }
+            let transfer_mode = if checkpoint.is_some() {
+                "resume_chunks"
+            } else if bundle_enabled {
+                "cache_limited_chunks"
+            } else {
+                "legacy_chunks"
+            };
             let (method, path, content_type, body) = match checkpoint {
                 None => (
                     "POST",
@@ -117,6 +127,7 @@ impl SenderHost {
                 path,
                 content_type: content_type.into(),
                 body_file,
+                transfer_mode,
             })
         })();
         match result {

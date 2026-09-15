@@ -15,6 +15,7 @@
 		2C32999EF0C04FF1F8A8880A /* Sparkle.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 76BB8F05A1902E1C41F0510A /* Sparkle.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		496CF8D8718D55BC23B35A5D /* PhotoBackupOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F359768915CEC860F0842C /* PhotoBackupOrder.swift */; };
 		503A57141C5C9E3AB3E4B85D /* BackupHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55F18CBC89F32633C952EBB /* BackupHelp.swift */; };
+		5FC0D83EAC21709058C08934 /* TransferDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77D4B5EBC8AA485231B8D798 /* TransferDiagnostics.swift */; };
 		651746B6853EA949B4B9DA65 /* TransferProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668BC0973BBAD2F961FE1185 /* TransferProgress.swift */; };
 		6AEBD09270D393723F2FED9F /* MacStatusMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6268280897D5020E6C757786 /* MacStatusMenu.swift */; };
 		783A31C70C8D7AFD6B9184B8 /* HistoricalImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF16FB086BA60EA5563663D2 /* HistoricalImport.swift */; };
@@ -68,6 +69,7 @@
 		668BC0973BBAD2F961FE1185 /* TransferProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferProgress.swift; sourceTree = "<group>"; };
 		7296872E4E972F100DEADC02 /* MacBackupPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacBackupPage.swift; sourceTree = "<group>"; };
 		76BB8F05A1902E1C41F0510A /* Sparkle.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Sparkle.framework; path = ../../build/dependencies/sparkle/Sparkle.framework; sourceTree = "<group>"; };
+		77D4B5EBC8AA485231B8D798 /* TransferDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferDiagnostics.swift; sourceTree = "<group>"; };
 		944CF0BD9719DB913AEEEF9B /* MacPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPreferences.swift; sourceTree = "<group>"; };
 		99725F66CDC3D3E91F670074 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		9AA28F647450C7799E24795F /* TransferViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferViews.swift; sourceTree = "<group>"; };
@@ -112,6 +114,7 @@
 				5D8BC3A822470B2C9921278D /* ReceiverDiscovery.swift */,
 				0AD7FA80185F7B4B9B0B9E3B /* StorageModel.swift */,
 				BBB436BC5341FE56BD7B9C57 /* TransferConcurrencySettings.swift */,
+				77D4B5EBC8AA485231B8D798 /* TransferDiagnostics.swift */,
 				668BC0973BBAD2F961FE1185 /* TransferProgress.swift */,
 				9AA28F647450C7799E24795F /* TransferViews.swift */,
 			);
@@ -283,6 +286,7 @@
 				E1E2E5F712C07C7FA825E490 /* ReceiverDiscovery.swift in Sources */,
 				1D6E9C98AEA0FDBA8DB816E8 /* StorageModel.swift in Sources */,
 				7E1363CD16CB38BFE052E5E6 /* TransferConcurrencySettings.swift in Sources */,
+				5FC0D83EAC21709058C08934 /* TransferDiagnostics.swift in Sources */,
 				651746B6853EA949B4B9DA65 /* TransferProgress.swift in Sources */,
 				0AB8EADACB55C990A8321FB1 /* TransferViews.swift in Sources */,
 			);

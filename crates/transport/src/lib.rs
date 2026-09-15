@@ -1,6 +1,8 @@
 //! Shared HTTP protocol host and reference Rust client. Native background upload
 //! engines can use the same wire contract and core::next_action instead.
 mod bundle;
+mod diagnostics;
+pub use diagnostics::{Observer, RequestObservation};
 mod pinned_tls;
 use axum::{
     body::Bytes,
@@ -33,6 +35,7 @@ struct ServerState {
     token_digest: String,
     sender_id: Option<String>,
     permits: Arc<Semaphore>,
+    observer: Option<Observer>,
 }
 #[derive(Serialize, Deserialize)]
 struct Problem {
@@ -82,12 +85,20 @@ pub fn router(receiver: Receiver, token: &str) -> Result<Router> {
     shared_router(Arc::new(Mutex::new(receiver)), token)
 }
 pub fn shared_router(receiver: Arc<Mutex<Receiver>>, token: &str) -> Result<Router> {
+    shared_router_observed(receiver, token, None)
+}
+pub fn shared_router_observed(
+    receiver: Arc<Mutex<Receiver>>,
+    token: &str,
+    observer: Option<Observer>,
+) -> Result<Router> {
     validate_token(token)?;
     let state = ServerState {
         receiver,
         token_digest: digest(token.as_bytes()),
         sender_id: None,
         permits: Arc::new(Semaphore::new(8)),
+        observer,
     };
     Ok(Router::new()
         .route("/v1/capabilities", get(capabilities))
@@ -160,6 +171,9 @@ async fn authorize(
     let Ok(_permit) = state.permits.try_acquire() else {
         return StatusCode::TOO_MANY_REQUESTS.into_response();
     };
+    if state.observer.is_some() {
+        return diagnostics::observe(request, next, state.observer.clone()).await;
+    }
     // Streaming bundles enforce a bounded idle timeout and declared lengths in
     // their reader. A total 60-second limit would abort healthy large uploads.
     if request.uri().path() == "/v1/bundles" {
