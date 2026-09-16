@@ -236,6 +236,72 @@ impl Sender {
             .map_err(db)?;
         ids.into_iter().map(|id| self.job(id)).collect()
     }
+    /// Explicit maintenance only: preserve obsolete jobs and their delivery proof
+    /// before removing them from the runnable queue. Never invent an old receipt.
+    pub fn archive_delivered_duplicates(
+        &mut self,
+        previous: &str,
+        current: &str,
+    ) -> Result<Vec<Job>> {
+        if previous.is_empty() || current.is_empty() || previous == current {
+            return Err(Error::Invalid("distinct receivers required".into()));
+        }
+        self.conn
+            .execute_batch(
+                "CREATE TABLE IF NOT EXISTS retired_cache_jobs(
+            archive_id INTEGER PRIMARY KEY AUTOINCREMENT, job_id INTEGER NOT NULL, previous_receiver TEXT NOT NULL,
+            current_receiver TEXT NOT NULL, job_json TEXT NOT NULL, proof_json TEXT NOT NULL);",
+            )
+            .map_err(db)?;
+        let ids = self.conn.prepare("SELECT id FROM jobs WHERE receiver_id=?1 AND state IN ('queued','paused','failed','waiting') AND native_task_id IS NULL AND id NOT IN (SELECT job_id FROM native_checkpoints)").map_err(db)?
+            .query_map([previous], |r| r.get::<_,i64>(0)).map_err(db)?
+            .collect::<std::result::Result<Vec<_>,_>>().map_err(db)?;
+        let mut pairs = Vec::new();
+        for id in ids {
+            let job = self.job(id)?;
+            let candidates = self.conn.prepare("SELECT id FROM jobs WHERE receiver_id=?1 AND state='received' AND json_extract(manifest,'$.source_id')=?2 AND json_extract(manifest,'$.revision')=?3").map_err(db)?
+                .query_map(params![current, job.asset.source_id, job.asset.revision], |r| r.get::<_,i64>(0)).map_err(db)?
+                .collect::<std::result::Result<Vec<_>,_>>().map_err(db)?;
+            for candidate in candidates {
+                let proof = self.job(candidate)?;
+                if job.asset.kind == proof.asset.kind
+                    && job.asset.resources == proof.asset.resources
+                {
+                    pairs.push((job, proof));
+                    break;
+                }
+            }
+        }
+        let tx = self.conn.transaction().map_err(db)?;
+        for (job, proof) in &pairs {
+            tx.execute(
+                "INSERT INTO retired_cache_jobs(job_id,previous_receiver,current_receiver,job_json,proof_json) VALUES(?1,?2,?3,?4,?5)",
+                params![
+                    job.id,
+                    previous,
+                    current,
+                    serde_json::to_string(job)?,
+                    serde_json::to_string(proof)?
+                ],
+            )
+            .map_err(db)?;
+            tx.execute("DELETE FROM jobs WHERE id=?1", [job.id])
+                .map_err(db)?;
+        }
+        if !pairs.is_empty() {
+            tx.execute("UPDATE settings SET value=value+1 WHERE key='revision'", [])
+                .map_err(db)?;
+        }
+        tx.commit().map_err(db)?;
+        // Include previous successful archives so interrupted file cleanup can resume.
+        let values = self.conn.prepare("SELECT job_json FROM retired_cache_jobs WHERE previous_receiver=?1 AND current_receiver=?2").map_err(db)?
+            .query_map(params![previous,current], |r| r.get::<_,String>(0)).map_err(db)?
+            .collect::<std::result::Result<Vec<_>,_>>().map_err(db)?;
+        values
+            .into_iter()
+            .map(|v| Ok(serde_json::from_str(&v)?))
+            .collect()
+    }
     pub fn source_in_use(&self, path: &str) -> Result<bool> {
         self.conn.query_row("SELECT EXISTS(SELECT 1 FROM jobs,json_each(jobs.sources) WHERE jobs.state!='received' AND json_each.value=?1)", [path], |r|r.get(0)).map_err(db)
     }

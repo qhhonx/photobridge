@@ -607,6 +607,9 @@ impl SenderHost {
         if job.state != photobridge_sender::JobState::Received {
             return Ok(0);
         }
+        self.reclaim_owned_sources(job)
+    }
+    fn reclaim_owned_sources(&self, job: &Job) -> Result<u64> {
         if fs::symlink_metadata(&self.export_root)
             .map(|m| m.file_type().is_symlink())
             .unwrap_or(false)
@@ -656,6 +659,18 @@ impl SenderHost {
             )?;
         }
         Ok(removed)
+    }
+    pub fn retire_delivered_cache(&self, previous: &str, current: &str) -> Result<Value> {
+        let jobs = self
+            .sender
+            .lock()
+            .map_err(lock)?
+            .archive_delivered_duplicates(previous, current)?;
+        let mut reclaimed = 0;
+        for job in &jobs {
+            reclaimed += self.reclaim_owned_sources(job)?;
+        }
+        Ok(json!({"archived_jobs": jobs.len(), "reclaimed_bytes": reclaimed}))
     }
     pub fn reclaim_received(&self) -> Result<u64> {
         let mut cursor = 0;
@@ -869,6 +884,57 @@ mod tests {
         )
         .unwrap();
         s.job(job.id).unwrap()
+    }
+    #[test]
+    fn retired_cache_requires_matching_receipt_and_retains_auditable_jobs() {
+        let t = Temp::new();
+        let host = SenderHost::open(&t.0.join("queue")).unwrap();
+        let folder = t.0.join("exports/old");
+        fs::create_dir_all(&folder).unwrap();
+        let path = folder.join("photo.jpg");
+        fs::write(&path, b"original").unwrap();
+        let current = job(&host, &path, "same");
+        let old = host
+            .enqueue("previous", current.asset.clone(), current.sources.clone())
+            .unwrap();
+        assert_eq!(
+            host.retire_delivered_cache("previous", "receiver").unwrap()["archived_jobs"],
+            0
+        );
+        assert!(path.exists());
+        let current = complete(&host, &current);
+        // A third destination sharing the file must keep its original.
+        let other = host
+            .enqueue("other", current.asset.clone(), current.sources.clone())
+            .unwrap();
+        let result = host.retire_delivered_cache("previous", "receiver").unwrap();
+        assert_eq!(result["archived_jobs"], 1);
+        assert_eq!(result["reclaimed_bytes"], 0);
+        assert!(path.exists());
+        assert!(host.sender.lock().unwrap().job(old.id).is_err());
+        assert_eq!(
+            host.sender.lock().unwrap().job(current.id).unwrap().state,
+            JobState::Received
+        );
+        assert_eq!(
+            host.sender.lock().unwrap().job(other.id).unwrap().state,
+            JobState::Queued
+        );
+        // Archive the other duplicate too, leaving only the valid receipt.
+        assert_eq!(
+            host.retire_delivered_cache("other", "receiver").unwrap()["reclaimed_bytes"],
+            8
+        );
+        assert!(!path.exists());
+        assert_eq!(
+            host.retire_delivered_cache("previous", "receiver").unwrap()["archived_jobs"],
+            1
+        );
+        assert_eq!(
+            host.retire_delivered_cache("previous", "receiver").unwrap()["reclaimed_bytes"],
+            0
+        );
+        assert!(host.retire_delivered_cache("receiver", "receiver").is_err());
     }
     #[test]
     fn reclaim_requires_receipt_and_preserves_shared_sources_and_receipts() {

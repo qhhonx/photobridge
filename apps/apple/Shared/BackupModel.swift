@@ -204,6 +204,13 @@ enum Bridge {
       discovery = try PhotoLibraryChanges(root: root)
       try discovery?.matchReceiver(pairing?.receiverID)
       updateDiscoveryStatus()
+      let arguments = ProcessInfo.processInfo.arguments
+      if let flag = arguments.firstIndex(of: "--retire-delivered-cache"),
+        arguments.indices.contains(flag + 1), let current = pairing?.receiverID {
+        let result = try await Bridge.call(["op": "retire_delivered_cache",
+          "previous_receiver": arguments[flag + 1], "current_receiver": current])
+        try result.write(to: root.appendingPathComponent("cache-retirement-result.json"), options: .atomic)
+      }
       ready = true
       await refreshPendingImportCount()
       // Initial lifecycle callbacks may arrive before storage is ready. Capture

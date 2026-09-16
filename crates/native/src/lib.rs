@@ -511,6 +511,10 @@ enum Command {
         context: Option<Box<maintenance::EventContext>>,
     },
     ReclaimSenderCache,
+    RetireDeliveredCache {
+        previous_receiver: String,
+        current_receiver: String,
+    },
     ArchiveBatch {
         root: Option<PathBuf>,
     },
@@ -1018,6 +1022,10 @@ fn dispatch(command: Command) -> Result<Value> {
             }
             Ok(json!({}))
         }
+        Command::RetireDeliveredCache {
+            previous_receiver,
+            current_receiver,
+        } => sender()?.retire_delivered_cache(&previous_receiver, &current_receiver),
         Command::ReclaimSenderCache => Ok(json!({"reclaimed_bytes":sender()?.reclaim_received()?})),
         Command::OpenSender { root } => {
             let mut hosts = HOSTS.lock().map_err(lock)?;
