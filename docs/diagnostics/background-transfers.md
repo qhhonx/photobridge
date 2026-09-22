@@ -57,6 +57,30 @@ preparing the next originals even when existing requests can finish.
 library item was backed up. Resolve the storage constraint before attributing
 this situation to OS scheduling or comparing charging conditions.
 
+## Receiver unavailable after a long background interval
+
+An iOS `request_failed` with `system_error=-1001`, HTTP status 0 and zero sent
+bytes means the request timed out before a usable response. If the receiver has
+no matching request admission, investigate the network path and receiver state
+before attributing the stall to iOS background scheduling. The background
+URLSession's one-hour resource timeout can make these failures appear in hourly
+groups.
+
+While the Android receiver foreground service is active, it holds a Wi-Fi lock
+so the radio stays available when the screen is off. This consumes extra power
+and cannot override Wi-Fi being disabled or all Android idle restrictions.
+Before preparing more iOS work, the sender now checks that the saved receiver
+answers an authenticated local-network probe. If unavailable, it retains
+existing tasks and source backlog without submitting more doomed requests.
+A BGProcessing wake also gives Bonjour a bounded opportunity to find the same
+receiver at a new local address; the candidate must still pass the saved TLS
+identity check. This does not guarantee continuous iOS background execution.
+
+Verify a fix with a locked-device run: compare sender submission/completion
+events with receiver admissions, confirm that the receiver stays reachable,
+and check that receipt counts increase after the connection returns. A short
+successful probe does not establish an overnight result.
+
 ## Controlled device run
 
 1. Confirm at least one correlated successful request on both peers.

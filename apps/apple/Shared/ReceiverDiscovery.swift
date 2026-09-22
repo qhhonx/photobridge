@@ -29,6 +29,19 @@ import Darwin
       for service in services { service.stop(); service.resolve(withTimeout: 5) }
     }
   }
+  /// BGProcessing gives us a bounded execution window in which Bonjour can
+  /// propose a new address. TLS identity is still verified by relocateReceiver.
+  func recoverInBackground(_ saved: Pairing) async -> Bool {
+    update(pairing: saved, active: true)
+    defer { update(pairing: nil, active: false) }
+    for _ in 0..<40 {
+      guard !Task.isCancelled, let current = model?.pairing,
+        current.receiverID == saved.receiverID else { return false }
+      if current.endpoint != saved.endpoint { return true }
+      try? await Task.sleep(nanoseconds: 200_000_000)
+    }
+    return false
+  }
   private func stop() {
     browser?.stop(); browser?.delegate = nil; browser = nil
     for service in services { service.stop(); service.delegate = nil }

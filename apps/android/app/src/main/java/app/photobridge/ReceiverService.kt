@@ -4,6 +4,7 @@ import android.app.*
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.wifi.WifiManager
 import android.os.IBinder
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,6 +61,7 @@ class ReceiverService : Service() {
                     var opened = false
                     var dashboard: Job? = null
                     var advertisement: ReceiverAdvertisement? = null
+                    var wifiLease: WifiManager.WifiLock? = null
                     try {
                         val address = wifiAddress()
                         // Create a locale-appropriate stable name even after boot,
@@ -69,6 +71,11 @@ class ReceiverService : Service() {
                             .put("root", "$filesDir/receiver").put("listen", "$address:8484")
                             .put("capacity", 6L * 1024 * 1024 * 1024)) as JSONObject
                         opened = true
+                        // A foreground service alone does not keep the Wi-Fi radio awake
+                        // when this always-on receiver's screen is off.
+                        wifiLease = getSystemService(WifiManager::class.java)
+                            .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "PhotoBridge:receiver")
+                            .apply { setReferenceCounted(false); acquire() }
                         NativeBridge.request(JSONObject().put("op", "receiver_transfer_hold").put("held", cleanup.held))
                         ReceiverState.pairing = pairing.toString()
                         advertisement = runCatching { ReceiverAdvertisement(this@ReceiverService, pairing.getString("receiver_id"), 8484) }.getOrNull()
@@ -112,6 +119,7 @@ class ReceiverService : Service() {
                             dashboard?.cancelAndJoin()
                             ReceiverState.pairing = null
                             if (opened) runCatching { NativeBridge.request(JSONObject().put("op", "stop_receiver")) }
+                            wifiLease?.let { lease -> if (lease.isHeld) lease.release() }
                             ReceiverState.mutable.update { it.copy(phase = if (scope.isActive) "waiting" else "idle", processingName = null) }
                         }
                     }

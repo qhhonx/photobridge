@@ -270,6 +270,16 @@ final class BackgroundTransfer: NSObject, @preconcurrency URLSessionDataDelegate
         await recordDecision("unpaired", tasks: tasks)
         return
       }
+      // The OS background session can wait an hour for an unreachable private
+      // address. Keep its existing requests, but do not fill it with more work
+      // until the saved receiver answers an authenticated local-network probe.
+      guard await model.canPrepareForReceiver() else {
+        await recordDecision("receiver_unavailable", tasks: tasks)
+        #if os(iOS)
+          endHandoff()
+        #endif
+        return
+      }
       // Rust limits prepared jobs to a small window; the OS can execute these
       // file uploads consecutively without waking us between assets.
       while !model.paused {

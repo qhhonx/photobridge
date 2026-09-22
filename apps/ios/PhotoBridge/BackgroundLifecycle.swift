@@ -18,6 +18,7 @@ import UIKit
           let model = BackupModel.shared
           await model.open()
           await BackgroundTransfer.shared.recordSnapshot("processing_wake")
+          await model.recoverBackgroundReceiverRoute()
           await BackgroundTransfer.shared.kick(reconcile: true)
           await model.prepareInBackground()
           await BackgroundTransfer.shared.recordSnapshot("processing_finished")
