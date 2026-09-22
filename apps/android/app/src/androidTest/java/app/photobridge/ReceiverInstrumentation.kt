@@ -254,11 +254,14 @@ private fun checkGalleryNaming(): String {
         return JSONObject().put("id", id).put("asset", JSONObject().put("kind", kind).put("metadata", metadata)
             .put("resources", JSONArray().put(JSONObject().put("filename", filename))))
     }
-    check(GalleryNaming.name(item("photo", "IMG_1234.HEIC")) == "PB_20260815_024141Z_a1b2c3d4e5f6a7b8.HEIC")
+    check(GalleryNaming.name(item("photo", "IMG_1234.HEIC")) == "PB_20260815_024141Z_a1b2.HEIC")
     check(GalleryNaming.name(item("photo", "IMG_1234.HEIC")) !=
         GalleryNaming.name(item("photo", "IMG_1234.HEIC").put("id", "f".repeat(64))))
-    check(GalleryNaming.name(item("video", "clip.mov")) == "PB_20260815_024141Z_a1b2c3d4e5f6a7b8.mov")
-    check(GalleryNaming.name(item("motion", "IMG_1234.HEIC")) == "PB_20260815_024141Z_a1b2c3d4e5f6a7b8.jpg")
+    val collision = item("photo", "IMG_1234.HEIC").put("id", "a1b2" + "f".repeat(60))
+    check(GalleryNaming.name(collision) == GalleryNaming.name(item("photo", "IMG_1234.HEIC")))
+    check(GalleryNaming.name(collision, 8) != GalleryNaming.name(item("photo", "IMG_1234.HEIC"), 8))
+    check(GalleryNaming.name(item("video", "clip.mov")) == "PB_20260815_024141Z_a1b2.mov")
+    check(GalleryNaming.name(item("motion", "IMG_1234.HEIC")) == "PB_20260815_024141Z_a1b2.jpg")
     check(GalleryNaming.name(item("photo", "IMG_1234.HEIC", burst = true)).endsWith(".jpg"))
     check(GalleryNaming.name(item("photo", "IMG_1234.HEIC", captured = null)).startsWith("PB_undated_"))
     check(GalleryNaming.legacyName(item("photo", "IMG_1234.HEIC")) == "PB_${id}.HEIC")

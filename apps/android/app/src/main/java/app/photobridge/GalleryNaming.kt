@@ -24,12 +24,15 @@ internal object GalleryNaming {
 
     fun legacyName(item: JSONObject): String = "PB_${item.getString("id")}${extension(item)}"
 
-    fun name(item: JSONObject): String {
+    fun name(item: JSONObject, suffixLength: Int = 4): String {
         val id = item.getString("id")
         check(assetID.matches(id)) { "invalid_asset_id" }
+        check(suffixLength in listOf(4, 8, 12, 16, 32, 64)) { "invalid_suffix_length" }
         val asset = item.getJSONObject("asset")
         val captured = MediaDates.captured(asset.optJSONObject("metadata"))
         val date = captured?.let { dateFormat.format(Instant.ofEpochMilli(it)) } ?: "undated"
-        return "PB_${date}_${id.take(16)}${extension(item)}"
+        return "PB_${date}_${id.take(suffixLength)}${extension(item)}"
     }
+
+    fun candidates(item: JSONObject): List<String> = listOf(4, 8, 12, 16, 32, 64).map { name(item, it) }
 }

@@ -1,6 +1,6 @@
 # Beta 10
 
-- Newly published Pixel gallery files use a capture-date name such as `PB_20260815_024141Z_a1b2c3d4e5f6a7b8.jpg`. The time is UTC; the short stable suffix prevents collisions. Original source filenames remain in PhotoBridge's transfer records.
+- Newly published Pixel gallery files use a capture-date name such as `PB_20260815_024141Z_a1b2.jpg`. The time is UTC; the four-character suffix grows only if another item already has that name. Original source filenames remain in PhotoBridge's transfer records.
 - Existing completed gallery copies keep their names. An unfinished copy created by an older build resumes in place instead of creating a duplicate.
 - The receiver keeps Wi-Fi active while listening with its screen off. Apple senders wait for the paired receiver to be reachable before submitting more background requests, and can rediscover its local address during a background wake.
 

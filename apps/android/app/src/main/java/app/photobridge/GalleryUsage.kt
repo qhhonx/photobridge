@@ -10,7 +10,7 @@ internal data class GalleryUsage(val readyBytes: Long, val readyCount: Long, val
 /** Indexed file sizes for this installation's delivery copies, never cloud state. */
 internal object GalleryInventory {
     private val legacyDeliveryName = Regex("^PB_[0-9a-f]{64}(?:\\.[^/]+)?$")
-    private val datedDeliveryName = Regex("^PB_(?:[0-9]{8}_[0-9]{6}Z|undated)_[0-9a-f]{16}(?:\\.[A-Za-z0-9]{1,12})?$")
+    private val datedDeliveryName = Regex("^PB_(?:[0-9]{8}_[0-9]{6}Z|undated)_[0-9a-f]{4,64}(?:\\.[A-Za-z0-9]{1,12})?$")
     internal fun isDeliveryName(name: String) = legacyDeliveryName.matches(name) || datedDeliveryName.matches(name)
     @Suppress("DEPRECATION")
     suspend fun read(context: Context): GalleryUsage {

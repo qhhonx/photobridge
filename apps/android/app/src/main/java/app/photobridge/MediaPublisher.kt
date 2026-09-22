@@ -18,8 +18,10 @@ internal data class GalleryCopy(val locator: String, val sha256: String, val siz
     companion object { fun parse(value: JSONObject) = GalleryCopy(value.getString("locator"), value.getString("sha256"), value.getLong("size")) }
 }
 internal object MediaPublisher {
+    private val publicationLock = Any()
     suspend fun publish(context: Context, item: JSONObject, existingOnly: Boolean = false): GalleryCopy {
         val evidence = NativeBridge.request(JSONObject().put("op", "gallery_evidence").put("id", item.getString("id"))) as JSONObject
+        var resumeLocator: String? = null
         evidence.optJSONObject("copy")?.let { stored ->
             val copy = GalleryCopy.parse(stored)
             try { return verify(context, copy) }
@@ -28,17 +30,18 @@ internal object MediaPublisher {
                 // An incomplete write can resume. A complete but changed/missing
                 // copy must never be overwritten merely to reclaim originals.
                 if (evidence.getBoolean("confirmed") || !ownedPending(context, Uri.parse(copy.locator))) throw error
+                resumeLocator = copy.locator
             }
         }
         val asset = item.getJSONObject("asset")
-        if (asset.getString("kind") == "motion") return MotionProcessor.publish(context, item, existingOnly)
-        if (asset.optJSONObject("metadata")?.has("burst_group_ref") == true) return BurstProcessor.publish(context, item, existingOnly)
+        if (asset.getString("kind") == "motion") return MotionProcessor.publish(context, item, existingOnly, resumeLocator)
+        if (asset.optJSONObject("metadata")?.has("burst_group_ref") == true) return BurstProcessor.publish(context, item, existingOnly, resumeLocator)
         val resource = asset.getJSONArray("resources").getJSONObject(0)
         val source = File(item.getJSONObject("resources").getString(resource.getString("sha256")))
         val dated = MediaDates.prepare(context, source, resource.getString("media_type"), asset.optJSONObject("metadata"))
         try {
             return publishFile(context, dated, item, resource.getString("media_type"),
-                asset.optJSONObject("metadata"), existingOnly, if (dated == source) resource.getString("sha256") else null)
+                asset.optJSONObject("metadata"), existingOnly, if (dated == source) resource.getString("sha256") else null, resumeLocator)
         } finally { if (dated != source) dated.delete() }
     }
     private fun ownedPending(context: Context, uri: Uri): Boolean {
@@ -74,9 +77,8 @@ internal object MediaPublisher {
             check(cursor.moveToFirst() && cursor.getInt(0) == 0 && cursor.getString(1) == context.packageName && cursor.getString(2) == "DCIM/PhotoBridge/" && (Build.VERSION.SDK_INT < 30 || cursor.getInt(3) == 0)) { "gallery_copy_missing" }
         }
     }
-    suspend fun publishFile(context: Context, source: File, item: JSONObject, mime: String, metadata: JSONObject?, existingOnly: Boolean = false, originalHash: String? = null): GalleryCopy {
+    suspend fun publishFile(context: Context, source: File, item: JSONObject, mime: String, metadata: JSONObject?, existingOnly: Boolean = false, originalHash: String? = null, resumeLocator: String? = null): GalleryCopy {
         val resolver = context.contentResolver
-        val name = GalleryNaming.name(item)
         val legacyName = GalleryNaming.legacyName(item)
         val collection = if (mime.startsWith("video/")) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
             else MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -85,31 +87,41 @@ internal object MediaPublisher {
         val columns = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.IS_PENDING, MediaStore.MediaColumns.OWNER_PACKAGE_NAME)
         val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=? AND ${MediaStore.MediaColumns.RELATIVE_PATH}=?"
         var destination: Uri? = null; var ready = false
-        // An unfinished publication from an older build must resume its original
-        // MediaStore row. Never create a second copy merely because names changed.
-        for (candidate in listOf(legacyName, name).distinct()) {
-            checkNotNull(resolver.query(collection, columns, selection, arrayOf(candidate, relative), null)).use { cursor ->
-                check(cursor.count <= 1) { "gallery_copy_ambiguous" }
-                if (cursor.moveToFirst()) {
-                    check(destination == null) { "gallery_copy_ambiguous" }
-                    check(cursor.getString(2) == context.packageName) { "gallery_copy_changed" }
-                    destination = ContentUris.withAppendedId(collection, cursor.getLong(0)); ready = cursor.getInt(1) == 0
+        synchronized(publicationLock) {
+            // Four hex digits are the common case. A name already owned by a
+            // different asset gets a longer suffix; it is never overwritten.
+            for (candidate in (listOf(legacyName) + GalleryNaming.candidates(item)).distinct()) {
+                var found: Uri? = null; var foundReady = false; var owner: String? = null
+                checkNotNull(resolver.query(collection, columns, selection, arrayOf(candidate, relative), null)).use { cursor ->
+                    check(cursor.count <= 1) { "gallery_copy_ambiguous" }
+                    if (cursor.moveToFirst()) {
+                        found = ContentUris.withAppendedId(collection, cursor.getLong(0))
+                        foundReady = cursor.getInt(1) == 0
+                        owner = cursor.getString(2)
+                    }
                 }
+                if (found != null) {
+                    if (found.toString() == resumeLocator || candidate == legacyName && resumeLocator == null && owner == context.packageName) {
+                        check(owner == context.packageName) { "gallery_copy_changed" }
+                        destination = found; ready = foundReady; break
+                    }
+                    continue
+                }
+                if (candidate == legacyName || resumeLocator != null || existingOnly) continue
+                destination = checkNotNull(resolver.insert(collection, ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, candidate); put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, relative); put(MediaStore.MediaColumns.IS_PENDING, 1)
+                    putAll(MediaDates.values(captured))
+                })) { "publication_failed" }
+                break
             }
         }
+        if (resumeLocator != null) check(destination.toString() == resumeLocator) { "gallery_copy_missing" }
         if (existingOnly) check(destination != null && ready) { "gallery_copy_missing" }
         val size = source.length(); check(size > 0) { "gallery_copy_missing" }
         val expected = originalHash ?: source.inputStream().use { hash(it, size).first }
         if (ready) return verify(context, GalleryCopy(requireNotNull(destination).toString(), expected, size))
-        if (destination == null) {
-            val values = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, name); put(MediaStore.MediaColumns.MIME_TYPE, mime)
-                put(MediaStore.MediaColumns.RELATIVE_PATH, relative); put(MediaStore.MediaColumns.IS_PENDING, 1)
-                putAll(MediaDates.values(captured))
-            }
-            destination = checkNotNull(resolver.insert(collection, values)) { "publication_failed" }
-        }
-        val uri = requireNotNull(destination)
+        val uri = destination ?: error("gallery_copy_ambiguous")
         val copy = GalleryCopy(uri.toString(), expected, size)
         NativeBridge.request(JSONObject().put("op", "prepare_gallery").put("id", item.getString("id")).put("copy", copy.json()))
         val copied = source.inputStream().use { input ->

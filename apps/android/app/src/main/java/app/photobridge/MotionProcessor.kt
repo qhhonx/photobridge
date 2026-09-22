@@ -17,7 +17,7 @@ import kotlin.coroutines.resumeWithException
 
 /** Android codec adapter; Rust owns the container and transfer state. */
 internal object MotionProcessor {
-    suspend fun publish(context: Context, item: JSONObject, existingOnly: Boolean = false): GalleryCopy {
+    suspend fun publish(context: Context, item: JSONObject, existingOnly: Boolean = false, resumeLocator: String? = null): GalleryCopy {
         val asset = item.getJSONObject("asset")
         val resources = asset.getJSONArray("resources")
         val paths = item.getJSONObject("resources")
@@ -39,7 +39,7 @@ internal object MotionProcessor {
             try {
                 NativeBridge.request(JSONObject().put("op", "package_motion").put("jpeg", dated.path).put("mp4", mp4.path).put("output", motion.path).put("metadata", asset.optJSONObject("metadata") ?: JSONObject()))
             } finally { if (dated != jpeg) dated.delete() }
-            return MediaPublisher.publishFile(context, motion, item, "image/jpeg", asset.optJSONObject("metadata"), existingOnly)
+            return MediaPublisher.publishFile(context, motion, item, "image/jpeg", asset.optJSONObject("metadata"), existingOnly, resumeLocator = resumeLocator)
         } finally {
             listOf(jpeg, mp4, motion).forEach { it.delete() }
             work.delete()

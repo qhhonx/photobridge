@@ -6,7 +6,7 @@ import java.io.File
 
 /** The receiver's delivery copy may change format; verified originals never do. */
 internal object BurstProcessor {
-    suspend fun publish(context: Context, item: JSONObject, existingOnly: Boolean = false): GalleryCopy {
+    suspend fun publish(context: Context, item: JSONObject, existingOnly: Boolean = false, resumeLocator: String? = null): GalleryCopy {
         val asset = item.getJSONObject("asset")
         val resource = asset.getJSONArray("resources").getJSONObject(0)
         val original = File(item.getJSONObject("resources").getString(resource.getString("sha256")))
@@ -26,7 +26,7 @@ internal object BurstProcessor {
                 NativeBridge.request(JSONObject().put("op", "package_burst").put("jpeg", dated.path)
                     .put("output", output.path).put("metadata", asset.getJSONObject("metadata")))
             } finally { if (dated != jpeg) dated.delete() }
-            return MediaPublisher.publishFile(context, output, item, "image/jpeg", asset.getJSONObject("metadata"), existingOnly)
+            return MediaPublisher.publishFile(context, output, item, "image/jpeg", asset.getJSONObject("metadata"), existingOnly, resumeLocator = resumeLocator)
         } finally {
             listOf(decoded, output, partial).forEach { it.delete() }
             work.delete()
