@@ -9,7 +9,9 @@ internal data class GalleryUsage(val readyBytes: Long, val readyCount: Long, val
 
 /** Indexed file sizes for this installation's delivery copies, never cloud state. */
 internal object GalleryInventory {
-    private val deliveryName = Regex("^PB_[0-9a-f]{64}(?:\\.[^/]+)?$")
+    private val legacyDeliveryName = Regex("^PB_[0-9a-f]{64}(?:\\.[^/]+)?$")
+    private val datedDeliveryName = Regex("^PB_(?:[0-9]{8}_[0-9]{6}Z|undated)_[0-9a-f]{16}(?:\\.[A-Za-z0-9]{1,12})?$")
+    internal fun isDeliveryName(name: String) = legacyDeliveryName.matches(name) || datedDeliveryName.matches(name)
     @Suppress("DEPRECATION")
     suspend fun read(context: Context): GalleryUsage {
         var bytes = 0L; var count = 0L; var pendingBytes = 0L; var pendingCount = 0L; var unknown = 0L
@@ -26,7 +28,8 @@ internal object GalleryInventory {
             cursor.use {
                 while (it.moveToNext()) {
                     currentCoroutineContext().ensureActive()
-                    if (it.getString(3) != context.packageName || !deliveryName.matches(it.getString(0) ?: "")) continue
+                    val name = it.getString(0) ?: ""
+                    if (it.getString(3) != context.packageName || !isDeliveryName(name)) continue
                     val size = if (it.isNull(1) || it.getLong(1) < 0) { unknown++; 0L } else it.getLong(1)
                     if (it.getInt(2) == 0) { bytes = Math.addExact(bytes, size); count++ }
                     else { pendingBytes = Math.addExact(pendingBytes, size); pendingCount++ }

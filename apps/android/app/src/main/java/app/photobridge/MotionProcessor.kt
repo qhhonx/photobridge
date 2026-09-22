@@ -39,7 +39,7 @@ internal object MotionProcessor {
             try {
                 NativeBridge.request(JSONObject().put("op", "package_motion").put("jpeg", dated.path).put("mp4", mp4.path).put("output", motion.path).put("metadata", asset.optJSONObject("metadata") ?: JSONObject()))
             } finally { if (dated != jpeg) dated.delete() }
-            return MediaPublisher.publishFile(context, motion, "PB_${item.getString("id")}.jpg", "image/jpeg", asset.optJSONObject("metadata"), existingOnly)
+            return MediaPublisher.publishFile(context, motion, item, "image/jpeg", asset.optJSONObject("metadata"), existingOnly)
         } finally {
             listOf(jpeg, mp4, motion).forEach { it.delete() }
             work.delete()

@@ -34,12 +34,10 @@ internal object MediaPublisher {
         if (asset.getString("kind") == "motion") return MotionProcessor.publish(context, item, existingOnly)
         if (asset.optJSONObject("metadata")?.has("burst_group_ref") == true) return BurstProcessor.publish(context, item, existingOnly)
         val resource = asset.getJSONArray("resources").getJSONObject(0)
-        val filename = resource.getString("filename")
-        val extension = filename.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
         val source = File(item.getJSONObject("resources").getString(resource.getString("sha256")))
         val dated = MediaDates.prepare(context, source, resource.getString("media_type"), asset.optJSONObject("metadata"))
         try {
-            return publishFile(context, dated, "PB_${item.getString("id")}$extension", resource.getString("media_type"),
+            return publishFile(context, dated, item, resource.getString("media_type"),
                 asset.optJSONObject("metadata"), existingOnly, if (dated == source) resource.getString("sha256") else null)
         } finally { if (dated != source) dated.delete() }
     }
@@ -76,8 +74,10 @@ internal object MediaPublisher {
             check(cursor.moveToFirst() && cursor.getInt(0) == 0 && cursor.getString(1) == context.packageName && cursor.getString(2) == "DCIM/PhotoBridge/" && (Build.VERSION.SDK_INT < 30 || cursor.getInt(3) == 0)) { "gallery_copy_missing" }
         }
     }
-    suspend fun publishFile(context: Context, source: File, name: String, mime: String, metadata: JSONObject?, existingOnly: Boolean = false, originalHash: String? = null): GalleryCopy {
+    suspend fun publishFile(context: Context, source: File, item: JSONObject, mime: String, metadata: JSONObject?, existingOnly: Boolean = false, originalHash: String? = null): GalleryCopy {
         val resolver = context.contentResolver
+        val name = GalleryNaming.name(item)
+        val legacyName = GalleryNaming.legacyName(item)
         val collection = if (mime.startsWith("video/")) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
             else MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         val relative = "DCIM/PhotoBridge/"
@@ -85,11 +85,16 @@ internal object MediaPublisher {
         val columns = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.IS_PENDING, MediaStore.MediaColumns.OWNER_PACKAGE_NAME)
         val selection = "${MediaStore.MediaColumns.DISPLAY_NAME}=? AND ${MediaStore.MediaColumns.RELATIVE_PATH}=?"
         var destination: Uri? = null; var ready = false
-        checkNotNull(resolver.query(collection, columns, selection, arrayOf(name, relative), null)).use { cursor ->
-            check(cursor.count <= 1) { "gallery_copy_ambiguous" }
-            if (cursor.moveToFirst()) {
-                check(cursor.getString(2) == context.packageName) { "gallery_copy_changed" }
-                destination = ContentUris.withAppendedId(collection, cursor.getLong(0)); ready = cursor.getInt(1) == 0
+        // An unfinished publication from an older build must resume its original
+        // MediaStore row. Never create a second copy merely because names changed.
+        for (candidate in listOf(legacyName, name).distinct()) {
+            checkNotNull(resolver.query(collection, columns, selection, arrayOf(candidate, relative), null)).use { cursor ->
+                check(cursor.count <= 1) { "gallery_copy_ambiguous" }
+                if (cursor.moveToFirst()) {
+                    check(destination == null) { "gallery_copy_ambiguous" }
+                    check(cursor.getString(2) == context.packageName) { "gallery_copy_changed" }
+                    destination = ContentUris.withAppendedId(collection, cursor.getLong(0)); ready = cursor.getInt(1) == 0
+                }
             }
         }
         if (existingOnly) check(destination != null && ready) { "gallery_copy_missing" }
@@ -106,8 +111,7 @@ internal object MediaPublisher {
         }
         val uri = requireNotNull(destination)
         val copy = GalleryCopy(uri.toString(), expected, size)
-        val assetID = name.removePrefix("PB_").take(64)
-        NativeBridge.request(JSONObject().put("op", "prepare_gallery").put("id", assetID).put("copy", copy.json()))
+        NativeBridge.request(JSONObject().put("op", "prepare_gallery").put("id", item.getString("id")).put("copy", copy.json()))
         val copied = source.inputStream().use { input ->
             checkNotNull(resolver.openOutputStream(uri, "wt")).use { output -> hash(input, size) { buffer, count -> output.write(buffer, 0, count) } }
         }
