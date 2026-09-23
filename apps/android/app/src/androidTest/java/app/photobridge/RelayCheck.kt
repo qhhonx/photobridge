@@ -7,7 +7,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-internal suspend fun Instrumentation.checkRelayRetention(root: File, photo: File, movie: File, pairing: JSONObject, publishedIds: MutableList<String>) {
+internal suspend fun Instrumentation.checkRelayRetention(root: File, photo: File, movie: File, pairing: JSONObject, publishedCopies: MutableList<Uri>) {
     val receiverRoot = File(root,"receiver").path
     fun settings() = (NativeBridge.request(JSONObject().put("op","receiver_settings").put("root",receiverRoot)) as JSONObject).getJSONObject("settings")
     fun relay(enabled: Boolean) { NativeBridge.request(JSONObject().put("op","receiver_settings").put("root",receiverRoot).put("settings",settings().put("receiver_relay",enabled))) }
@@ -23,8 +23,8 @@ internal suspend fun Instrumentation.checkRelayRetention(root: File, photo: File
         check((NativeBridge.request(JSONObject().put("op","run_sender").put("pairing",pairing)) as JSONObject).getString("state")=="received")
         val items=NativeBridge.request(JSONObject().put("op","publications")) as JSONArray
         check(items.length()==1)
-        val item=items.getJSONObject(0); val id=item.getString("id"); ids+=id; publishedIds+=id
-        val copy=MediaPublisher.publish(targetContext,item); copies+=copy
+        val item=items.getJSONObject(0); val id=item.getString("id"); ids+=id
+        val copy=MediaPublisher.publish(targetContext,item); copies+=copy; publishedCopies+=Uri.parse(copy.locator)
         // The persisted pre-write evidence makes replay independent of codecs.
         val prepared=NativeBridge.request(JSONObject().put("op","gallery_evidence").put("id",id)) as JSONObject
         check(!prepared.getBoolean("confirmed") && GalleryCopy.parse(prepared.getJSONObject("copy"))==copy)
@@ -66,8 +66,9 @@ internal suspend fun Instrumentation.checkRelayRetention(root: File, photo: File
         .put("resources",JSONArray().put(resource(fresh,"photo","image/jpeg"))))
     check((NativeBridge.request(JSONObject().put("op","run_sender").put("pairing",pairing)) as JSONObject).getString("state")=="received")
     val item=(NativeBridge.request(JSONObject().put("op","publications")) as JSONArray).getJSONObject(0)
-    val freshID=item.getString("id");publishedIds+=freshID
+    val freshID=item.getString("id")
     val freshCopy=MediaPublisher.publish(targetContext,item)
+    publishedCopies+=Uri.parse(freshCopy.locator)
     val result=NativeBridge.request(JSONObject().put("op","gallery_publication").put("id",freshID).put("copy",freshCopy.json())) as JSONObject
     check(result.getLong("bytes")==fresh.length() && released(freshID)) { "new_publication_not_automatically_reclaimed" }
     MediaPublisher.verify(targetContext,freshCopy)

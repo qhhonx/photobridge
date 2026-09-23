@@ -172,6 +172,7 @@ pub enum RequestPhase {
 pub enum DispatchReason {
     Paused,
     Unpaired,
+    ReceiverUnavailable,
     ActiveRequest,
     NoEligibleJob,
     PreparationFailed,

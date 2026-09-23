@@ -115,6 +115,15 @@ enum Bridge {
     if !available { activeExport?.cancel() }
     return available && !paused
   }
+  #if os(iOS)
+    func recoverBackgroundReceiverRoute() async {
+      guard !paused, let saved = pairing, !(await canPrepareForReceiver()) else { return }
+      let discovery = ReceiverDiscovery(model: self)
+      if await discovery.recoverInBackground(saved) {
+        _ = await canPrepareForReceiver()
+      }
+    }
+  #endif
   @Published var importingSourceID: String?
   @Published var exportProgress: Double?
   @Published var storage: StorageSnapshot?

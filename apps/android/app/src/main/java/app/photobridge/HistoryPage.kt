@@ -21,6 +21,7 @@ import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.json.JSONObject
 
 internal class HistoryPage(private val activity: MainActivity, private val model: HistoryModel, private val root: String) : LinearLayout(activity) {
     private val count: TextView
@@ -198,11 +199,16 @@ private class TransferAdapter(private val activity: MainActivity) : ListAdapter<
                     currentCoroutineContext().ensureActive()
                     runCatching {
                         val resolver = activity.contentResolver
-                        val collection = if (item.kind == "video") MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-                        val uri = resolver.query(collection, arrayOf(MediaStore.MediaColumns._ID),
-                            "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ? AND ${MediaStore.MediaColumns.RELATIVE_PATH}=? AND ${MediaStore.MediaColumns.IS_PENDING}=0",
-                            arrayOf("PB_${item.id}.%", "DCIM/PhotoBridge/"), null, signal)?.use { cursor ->
-                            if (cursor.moveToFirst()) ContentUris.withAppendedId(collection, cursor.getLong(0)) else null
+                        val evidence = NativeBridge.request(JSONObject().put("op", "gallery_evidence").put("id", item.id)) as JSONObject
+                        val stored = evidence.optJSONObject("copy")?.let { Uri.parse(it.getString("locator")) }
+                        val uri = if (stored?.scheme == "content" && stored.authority == "media") stored else {
+                            // Pre-evidence receiver data can still use the legacy name.
+                            val collection = if (item.kind == "video") MediaStore.Video.Media.EXTERNAL_CONTENT_URI else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                            resolver.query(collection, arrayOf(MediaStore.MediaColumns._ID),
+                                "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ? AND ${MediaStore.MediaColumns.RELATIVE_PATH}=? AND ${MediaStore.MediaColumns.IS_PENDING}=0",
+                                arrayOf("PB_${item.id}.%", "DCIM/PhotoBridge/"), null, signal)?.use { cursor ->
+                                if (cursor.moveToFirst()) ContentUris.withAppendedId(collection, cursor.getLong(0)) else null
+                            }
                         } ?: return@withPermit null
                         Thumbnail(resolver.loadThumbnail(uri, Size(160, 160), signal), uri).also { cache.put(item.id, it) }
                     }.getOrNull()

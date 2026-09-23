@@ -1,11 +1,10 @@
-# Beta 9
+# Beta 10
 
-- Add a native Mac menu bar item showing backup status, receiver name and received item count.
-- Pause or resume backups, open the main window, access settings and check for updates from the menu bar.
-- Keep the menu available after closing the main window. Reopening uses the same main window instead of creating duplicate windows.
+- Newly published Pixel gallery files use a capture-date name such as `PB_20260815_024141Z_a1b2.jpg`. The time is UTC; the four-character suffix grows only if another item already has that name. Original source filenames remain in PhotoBridge's transfer records.
+- Existing completed gallery copies keep their names. An unfinished copy created by an older build resumes in place instead of creating a duplicate.
+- The receiver keeps Wi-Fi active while listening with its screen off. Apple senders wait for the paired receiver to be reachable before submitting more background requests, and can rediscover its local address during a background wake.
 
-Includes beta 8 transfer explanations and configurable concurrent uploads.
-Existing pairings, pending sources, receipts and manual pause settings are preserved.
+Existing pairings, pending sources and receipts are preserved. Google Photos cloud backup remains separate from receipt on Pixel; previously uploaded cloud filenames are not changed by this update.
 
 Mac requires Apple Silicon and macOS 14+. Android requires arm64 and Android 10+.
 iOS 17+ is available from source. The Mac beta is not Apple-notarized.
