@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
+import android.provider.MediaStore
 import androidx.exifinterface.media.ExifInterface
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -28,7 +29,28 @@ internal object MotionProcessor {
         val jpeg = File(work, "still.jpg")
         val mp4 = File(work, "motion.mp4")
         val motion = File(work, "output.jpg")
+        val heicMotion = File(work, "output.heic")
         try {
+            val stillName = resources.getJSONObject(0).optString("filename").lowercase()
+            val videoName = resources.getJSONObject(1).optString("filename").lowercase()
+            val pendingMime = resumeLocator?.let { locator ->
+                context.contentResolver.query(Uri.parse(locator), arrayOf(MediaStore.MediaColumns.MIME_TYPE), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                }
+            }
+            if ((stillName.endsWith(".heic") || stillName.endsWith(".heif")) && videoName.endsWith(".mov") &&
+                (resumeLocator == null || pendingMime == "image/heic")) {
+                var dated: File? = null
+                try {
+                    dated = MediaDates.prepare(context, still, "image/heic", asset.optJSONObject("metadata"))
+                    NativeBridge.request(JSONObject().put("op", "package_heic_motion")
+                        .put("heic", dated.path).put("mov", video.path).put("output", heicMotion.path)
+                        .put("metadata", asset.optJSONObject("metadata") ?: JSONObject()))
+                    return MediaPublisher.publishFile(context, heicMotion, item, "image/heic", asset.optJSONObject("metadata"), existingOnly, resumeLocator = resumeLocator)
+                } catch (error: IllegalStateException) {
+                    if (pendingMime == "image/heic" || !error.message.orEmpty().startsWith("unsupported capability:")) throw error
+                } finally { if (dated != still) dated?.delete() }
+            }
             prepareStill(still, jpeg)
             if (mp4.exists()) check(mp4.delete()) { "storage" }
             try { transcode(context, video, mp4) }
@@ -41,7 +63,7 @@ internal object MotionProcessor {
             } finally { if (dated != jpeg) dated.delete() }
             return MediaPublisher.publishFile(context, motion, item, "image/jpeg", asset.optJSONObject("metadata"), existingOnly, resumeLocator = resumeLocator)
         } finally {
-            listOf(jpeg, mp4, motion).forEach { it.delete() }
+            listOf(jpeg, mp4, motion, heicMotion).forEach { it.delete() }
             work.delete()
         }
     }

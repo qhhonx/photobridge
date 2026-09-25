@@ -633,6 +633,13 @@ enum Command {
         #[serde(default)]
         metadata: BTreeMap<String, String>,
     },
+    PackageHeicMotion {
+        heic: PathBuf,
+        mov: PathBuf,
+        output: PathBuf,
+        #[serde(default)]
+        metadata: BTreeMap<String, String>,
+    },
     StopReceiver,
     ReceiverStatus,
     ReceiverOverview,
@@ -1263,6 +1270,20 @@ fn dispatch(command: Command) -> Result<Value> {
                 &mp4,
                 &output,
                 None,
+                BurstMetadata::from_fields(&metadata)?.as_ref(),
+            )?;
+            Ok(json!({}))
+        }
+        Command::PackageHeicMotion {
+            heic,
+            mov,
+            output,
+            metadata,
+        } => {
+            photobridge_pixel::write_heic_motion_with_burst(
+                &heic,
+                &mov,
+                &output,
                 BurstMetadata::from_fields(&metadata)?.as_ref(),
             )?;
             Ok(json!({}))

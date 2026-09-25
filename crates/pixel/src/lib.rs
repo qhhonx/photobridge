@@ -2,11 +2,13 @@
 //! A native Android host must implement conversion and MediaStore publication.
 mod burst;
 mod gain_map;
+mod heic_motion;
 mod photo_date;
 pub use photo_date::write_photo_date;
 pub mod photos_cleanup;
 pub mod photos_probe;
 pub use burst::write_jpeg_burst;
+pub use heic_motion::write_heic_motion_with_burst;
 use photobridge_core::{
     Asset, AssetKind, BurstMetadata, Error, Result, TargetPlan, TargetProcessor,
 };

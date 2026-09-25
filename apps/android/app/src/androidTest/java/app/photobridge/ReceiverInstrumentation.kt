@@ -262,6 +262,7 @@ private fun checkGalleryNaming(): String {
     check(GalleryNaming.name(collision, 8) != GalleryNaming.name(item("photo", "IMG_1234.HEIC"), 8))
     check(GalleryNaming.name(item("video", "clip.mov")) == "PB_20260815_024141Z_a1b2.mov")
     check(GalleryNaming.name(item("motion", "IMG_1234.HEIC")) == "PB_20260815_024141Z_a1b2.jpg")
+    check(GalleryNaming.name(item("motion", "IMG_1234.HEIC"), outputMime = "image/heic") == "PB_20260815_024141Z_a1b2.heic")
     check(GalleryNaming.name(item("photo", "IMG_1234.HEIC", burst = true)).endsWith(".jpg"))
     check(GalleryNaming.name(item("photo", "IMG_1234.HEIC", captured = null)).startsWith("PB_undated_"))
     check(GalleryNaming.legacyName(item("photo", "IMG_1234.HEIC")) == "PB_${id}.HEIC")

@@ -79,7 +79,7 @@ internal object MediaPublisher {
     }
     suspend fun publishFile(context: Context, source: File, item: JSONObject, mime: String, metadata: JSONObject?, existingOnly: Boolean = false, originalHash: String? = null, resumeLocator: String? = null): GalleryCopy {
         val resolver = context.contentResolver
-        val legacyName = GalleryNaming.legacyName(item)
+        val legacyName = GalleryNaming.legacyName(item, mime)
         val collection = if (mime.startsWith("video/")) MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
             else MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         val relative = "DCIM/PhotoBridge/"
@@ -90,7 +90,7 @@ internal object MediaPublisher {
         synchronized(publicationLock) {
             // Four hex digits are the common case. A name already owned by a
             // different asset gets a longer suffix; it is never overwritten.
-            for (candidate in (listOf(legacyName) + GalleryNaming.candidates(item)).distinct()) {
+            for (candidate in (listOf(legacyName) + GalleryNaming.candidates(item, mime)).distinct()) {
                 var found: Uri? = null; var foundReady = false; var owner: String? = null
                 checkNotNull(resolver.query(collection, columns, selection, arrayOf(candidate, relative), null)).use { cursor ->
                     check(cursor.count <= 1) { "gallery_copy_ambiguous" }
