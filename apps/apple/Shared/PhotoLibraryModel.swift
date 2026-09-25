@@ -433,7 +433,8 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
 
 func taskSymbol(_ state: String?) -> String {
   switch state {
-  case "received": "checkmark.circle"
+  case "received": "checkmark.circle.fill"
+  case "received_previous": "checkmark.circle"
   case "partial": "circle.lefthalf.filled"
   case "scheduled", "running": "arrow.up.circle"
   case "waiting": "clock.arrow.circlepath"

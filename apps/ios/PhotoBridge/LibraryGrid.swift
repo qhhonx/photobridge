@@ -322,7 +322,7 @@ struct IOSLibraryGrid: UIViewRepresentable {
   func setState(_ state: String?) {
     status.image = UIImage(systemName: taskSymbol(state))
     status.tintColor =
-      state == "received" ? .systemGreen : state == "failed" ? .systemOrange : .white
+      state == "received" || state == "received_previous" ? .systemGreen : state == "failed" ? .systemOrange : .white
     accessibilityValue = groupDescription + NSLocalizedString(
       state.map { "state_" + $0 } ?? "state_not_queued", comment: "")
   }

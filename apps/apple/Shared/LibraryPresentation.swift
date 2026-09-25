@@ -57,7 +57,10 @@ struct LibraryGroup: Sendable {
       if known.contains(state) { return state }
     }
     if known.count == sources.count && known.allSatisfy({ $0 == "received" }) { return "received" }
-    return known.contains("received") ? "partial" : nil
+    if known.count == sources.count && known.allSatisfy({ ["received", "received_previous"].contains($0) }) {
+      return "received_previous"
+    }
+    return known.contains(where: { ["received", "received_previous"].contains($0) }) ? "partial" : nil
   }
 }
 
@@ -83,7 +86,8 @@ extension LibraryPresentationIndex {
   for start in stride(from: 0, to: entries.count, by: 400) {
     guard !Task.isCancelled else { return nil }
     let batch = Array(entries[start..<min(start + 400, entries.count)])
-    if let data = try? await Bridge.call(["op": "source_states", "include_pending": true, "receiver_id": receiver, "sources": batch]),
+    if let data = try? await Bridge.call(["op": "source_states", "include_pending": true,
+      "include_previous_receipts": true, "receiver_id": receiver, "sources": batch]),
       let result = try? JSONDecoder().decode([String: String].self, from: data) {
       states.merge(result, uniquingKeysWith: { _, new in new })
     } else { return nil }

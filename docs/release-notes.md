@@ -1,10 +1,10 @@
-# Beta 11
+# Beta 12
 
-- Pixel now packages supported Apple Live Photos using their original HEIC or JPEG still and MOV or MP4 video, without re-encoding either media stream. JPEG + MOV deliveries include a motion-video index for Google Photos compatibility.
-- If a still image cannot be packaged directly, Pixel converts only that still; a compatible MOV or MP4 stays unchanged. Older unfinished JPEG deliveries continue with their original format so they can resume safely.
-- New HEIC motion deliveries use a `.heic` gallery file. Existing completed gallery copies are not reprocessed or renamed.
+- The Apple photo library now distinguishes a receipt for the current photo version from a receipt for an earlier version of the same photo. A later PhotoKit metadata change no longer makes a previously received photo look as if it was never transferred.
+- Active, failed, and pending work for the current version still takes precedence. Preparing and deduplication continue to match the exact source revision; this display fix does not silently skip edited photos or transfer them again.
+- Burst status still requires a receipt for every member before showing a completed mark. The hint is scoped to the paired receiver and does not imply Google Photos cloud backup.
 
-Existing pairings, pending sources and receipts are preserved. Google Photos cloud backup remains separate from receipt on Pixel.
+Existing pairings, pending sources and receipts are preserved.
 
 Mac requires Apple Silicon and macOS 14+. Android requires arm64 and Android 10+.
 iOS 17+ is available from source. The Mac beta is not Apple-notarized.

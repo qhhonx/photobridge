@@ -359,7 +359,7 @@ struct MacLibraryGrid: NSViewRepresentable {
   func setState(_ state: String?) {
     status.image = NSImage(systemSymbolName: taskSymbol(state), accessibilityDescription: nil)
     status.contentTintColor =
-      state == "received" ? .systemGreen : state == "failed" ? .systemOrange : .white
+      state == "received" || state == "received_previous" ? .systemGreen : state == "failed" ? .systemOrange : .white
     status.toolTip = groupDescription + NSLocalizedString(
       state.map { "state_" + $0 } ?? "state_not_queued", comment: "")
     view.setAccessibilityValue(status.toolTip)

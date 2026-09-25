@@ -316,6 +316,16 @@ fn visible_source_status_is_scoped_to_receiver_and_revision() {
         s.source_states("receiver-1", &keys).unwrap()[&first.asset.source_id],
         "received"
     );
+    let edited = vec![(first.asset.source_id.clone(), "edited".into())];
+    assert!(s.source_states("receiver-1", &edited).unwrap().is_empty());
+    assert_eq!(
+        s.previous_receipts("receiver-1", &edited).unwrap()[&first.asset.source_id],
+        "received_previous"
+    );
+    assert!(s
+        .previous_receipts("receiver-2", &edited)
+        .unwrap()
+        .is_empty());
     let summary = s.summary("receiver-1").unwrap();
     assert_eq!(summary["received"], 1);
     assert_eq!(summary["confirmed_bytes"], 10);

@@ -580,6 +580,8 @@ enum Command {
     SourceStates {
         #[serde(default)]
         include_pending: bool,
+        #[serde(default)]
+        include_previous_receipts: bool,
         receiver_id: String,
         sources: Vec<(String, String)>,
     },
@@ -1132,6 +1134,7 @@ fn dispatch(command: Command) -> Result<Value> {
             receiver_id,
             sources,
             include_pending,
+            include_previous_receipts,
         } => {
             let host = sender()?;
             let mut states = host
@@ -1146,6 +1149,16 @@ fn dispatch(command: Command) -> Result<Value> {
                     .map_err(lock)?
                     .pending_states(&receiver_id, &sources)?;
                 for (id, state) in pending {
+                    states.entry(id).or_insert(state);
+                }
+            }
+            if include_previous_receipts {
+                let previous = host
+                    .sender
+                    .lock()
+                    .map_err(lock)?
+                    .previous_receipts(&receiver_id, &sources)?;
+                for (id, state) in previous {
                     states.entry(id).or_insert(state);
                 }
             }

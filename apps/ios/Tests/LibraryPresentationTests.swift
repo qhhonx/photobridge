@@ -96,6 +96,8 @@ final class LibraryPresentationTests: XCTestCase {
     XCTAssertEqual(group.state(["0": "received", "1": "running"]), "running")
     XCTAssertEqual(group.state(["0": "received", "1": "failed", "2": "running"]), "failed")
     XCTAssertEqual(group.state(["0": "received", "1": "received", "2": "received"]), "received")
+    XCTAssertEqual(group.state(["0": "received", "1": "received_previous", "2": "received"]), "received_previous")
+    XCTAssertEqual(group.state(["0": "received_previous"]), "partial")
     XCTAssertEqual(group.state(["0": "received", "1": "received", "2": "waiting"]), "waiting")
     XCTAssertNil(LibraryGroup(sources: group.sources, complete: false).state(["0": "received", "1": "received", "2": "received"]))
     XCTAssertNil(LibraryGroup(sources: [], complete: true).state([:]))

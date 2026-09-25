@@ -21,6 +21,7 @@
 "state_paused" = "Paused";
 "state_failed" = "Needs attention";
 "state_received" = "Received";
+"state_received_previous" = "Previous version received; current version not transferred";
 "error_network" = "Network unavailable; automatic retry is scheduled.";
 "error_capacity" = "Receiver original-storage budget reached. Increase it on the receiver to continue automatically.";
 "error_busy" = "Receiver busy; automatic retry is scheduled.";

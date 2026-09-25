@@ -352,6 +352,28 @@ impl Sender {
         }
         Ok(states)
     }
+    /// Gallery-only receipt hint for a source whose current revision has no job.
+    /// Preparation and deduplication must continue to use exact source revisions.
+    pub fn previous_receipts(
+        &self,
+        receiver: &str,
+        sources: &[(String, String)],
+    ) -> Result<BTreeMap<String, String>> {
+        if sources.len() > 400 {
+            return Err(Error::Invalid("source window".into()));
+        }
+        let mut stmt = self.conn.prepare("SELECT EXISTS(SELECT 1 FROM jobs WHERE receiver_id=?1 AND json_extract(manifest,'$.source_id')=?2 AND state='received')").map_err(db)?;
+        let mut states = BTreeMap::new();
+        for (id, _) in sources {
+            let received: bool = stmt
+                .query_row(params![receiver, id], |r| r.get(0))
+                .map_err(db)?;
+            if received {
+                states.insert(id.clone(), "received_previous".into());
+            }
+        }
+        Ok(states)
+    }
     pub fn summary(&self, receiver: &str) -> Result<serde_json::Value> {
         let mut stmt = self.conn.prepare("SELECT state,COUNT(*),SUM(confirmed_bytes) FROM jobs WHERE receiver_id=?1 GROUP BY state").map_err(db)?;
         let rows = stmt

@@ -21,6 +21,7 @@
 "state_paused" = "已暂停";
 "state_failed" = "需要处理";
 "state_received" = "已接收";
+"state_received_previous" = "先前版本已接收，当前版本尚未传输";
 "error_network" = "网络不可用，稍后自动重试。";
 "error_capacity" = "接收端原件存储预算不足，请在接收端提高预算，任务会自动重试。";
 "error_busy" = "接收端忙碌，稍后自动重试。";
