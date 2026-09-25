@@ -356,6 +356,13 @@ fn lock<T>(_: std::sync::PoisonError<T>) -> Error {
     Error::Storage("host lock unavailable".into())
 }
 
+fn default_motion_video_mime() -> String {
+    "video/mp4".into()
+}
+fn default_heic_motion_video_mime() -> String {
+    "video/quicktime".into()
+}
+
 #[derive(Deserialize)]
 struct ExportedResource {
     role: ResourceRole,
@@ -632,6 +639,8 @@ enum Command {
         output: PathBuf,
         #[serde(default)]
         metadata: BTreeMap<String, String>,
+        #[serde(default = "default_motion_video_mime")]
+        video_mime: String,
     },
     PackageHeicMotion {
         heic: PathBuf,
@@ -639,6 +648,8 @@ enum Command {
         output: PathBuf,
         #[serde(default)]
         metadata: BTreeMap<String, String>,
+        #[serde(default = "default_heic_motion_video_mime")]
+        video_mime: String,
     },
     StopReceiver,
     ReceiverStatus,
@@ -1264,13 +1275,15 @@ fn dispatch(command: Command) -> Result<Value> {
             mp4,
             output,
             metadata,
+            video_mime,
         } => {
-            photobridge_pixel::write_jpeg_motion_with_burst(
+            photobridge_pixel::write_jpeg_motion_with_burst_and_video_mime(
                 &jpeg,
                 &mp4,
                 &output,
                 None,
                 BurstMetadata::from_fields(&metadata)?.as_ref(),
+                &video_mime,
             )?;
             Ok(json!({}))
         }
@@ -1279,12 +1292,14 @@ fn dispatch(command: Command) -> Result<Value> {
             mov,
             output,
             metadata,
+            video_mime,
         } => {
-            photobridge_pixel::write_heic_motion_with_burst(
+            photobridge_pixel::write_heic_motion_with_burst_and_video_mime(
                 &heic,
                 &mov,
                 &output,
                 BurstMetadata::from_fields(&metadata)?.as_ref(),
+                &video_mime,
             )?;
             Ok(json!({}))
         }

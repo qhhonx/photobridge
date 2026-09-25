@@ -13,6 +13,7 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -33,22 +34,44 @@ internal object MotionProcessor {
         try {
             val stillName = resources.getJSONObject(0).optString("filename").lowercase()
             val videoName = resources.getJSONObject(1).optString("filename").lowercase()
+            val directVideoMime = when {
+                videoName.endsWith(".mov") -> "video/quicktime"
+                videoName.endsWith(".mp4") -> "video/mp4"
+                else -> null
+            }
             val pendingMime = resumeLocator?.let { locator ->
                 context.contentResolver.query(Uri.parse(locator), arrayOf(MediaStore.MediaColumns.MIME_TYPE), null, null, null)?.use { cursor ->
                     if (cursor.moveToFirst()) cursor.getString(0) else null
                 }
             }
-            if ((stillName.endsWith(".heic") || stillName.endsWith(".heif")) && videoName.endsWith(".mov") &&
+            if ((stillName.endsWith(".heic") || stillName.endsWith(".heif")) && directVideoMime != null &&
                 (resumeLocator == null || pendingMime == "image/heic")) {
                 var dated: File? = null
                 try {
                     dated = MediaDates.prepare(context, still, "image/heic", asset.optJSONObject("metadata"))
                     NativeBridge.request(JSONObject().put("op", "package_heic_motion")
                         .put("heic", dated.path).put("mov", video.path).put("output", heicMotion.path)
+                        .put("video_mime", directVideoMime)
                         .put("metadata", asset.optJSONObject("metadata") ?: JSONObject()))
                     return MediaPublisher.publishFile(context, heicMotion, item, "image/heic", asset.optJSONObject("metadata"), existingOnly, resumeLocator = resumeLocator)
                 } catch (error: IllegalStateException) {
                     if (pendingMime == "image/heic" || !error.message.orEmpty().startsWith("unsupported capability:")) throw error
+                } finally { if (dated != still) dated?.delete() }
+            }
+            if ((stillName.endsWith(".jpg") || stillName.endsWith(".jpeg")) && directVideoMime != null &&
+                (resumeLocator == null || pendingMime == "image/jpeg")) {
+                var dated: File? = null
+                try {
+                    dated = MediaDates.prepare(context, still, "image/jpeg", asset.optJSONObject("metadata"))
+                    NativeBridge.request(JSONObject().put("op", "package_motion")
+                        .put("jpeg", dated.path).put("mp4", video.path).put("output", motion.path)
+                        .put("video_mime", directVideoMime)
+                        .put("metadata", asset.optJSONObject("metadata") ?: JSONObject()))
+                    if (resumeLocator == null || matchesPreparedCopy(item, motion)) {
+                        return MediaPublisher.publishFile(context, motion, item, "image/jpeg", asset.optJSONObject("metadata"), existingOnly, resumeLocator = resumeLocator)
+                    }
+                } catch (error: IllegalStateException) {
+                    if (!error.message.orEmpty().startsWith("unsupported capability:")) throw error
                 } finally { if (dated != still) dated?.delete() }
             }
             prepareStill(still, jpeg)
@@ -66,6 +89,20 @@ internal object MotionProcessor {
             listOf(jpeg, mp4, motion, heicMotion).forEach { it.delete() }
             work.delete()
         }
+    }
+    private fun matchesPreparedCopy(item: JSONObject, output: File): Boolean {
+        val evidence = NativeBridge.request(JSONObject().put("op", "gallery_evidence").put("id", item.getString("id"))) as JSONObject
+        val expected = evidence.optJSONObject("copy")?.optString("sha256") ?: return false
+        val digest = MessageDigest.getInstance("SHA-256")
+        output.inputStream().use { input ->
+            val buffer = ByteArray(65_536)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) } == expected
     }
     fun prepareStill(still: File, jpeg: File) {
         val bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(still)) { decoder, info, _ ->

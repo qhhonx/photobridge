@@ -1,4 +1,6 @@
-use photobridge_pixel::write_heic_motion_with_burst;
+use photobridge_pixel::{
+    write_heic_motion_with_burst, write_heic_motion_with_burst_and_video_mime,
+};
 use std::{fs, path::PathBuf};
 
 fn atom(kind: &[u8; 4], body: &[u8]) -> Vec<u8> {
@@ -50,6 +52,11 @@ fn heic_and_mov_payloads_are_preserved() {
         .windows(b"MotionPhoto".len())
         .any(|w| w == b"MotionPhoto"));
     assert!(result.ends_with(b"SEFT"));
+    let mp4_output = root.join("result-mp4.heic");
+    write_heic_motion_with_burst_and_video_mime(&still, &video, &mp4_output, None, "video/mp4")
+        .unwrap();
+    assert!(String::from_utf8_lossy(&fs::read(&mp4_output).unwrap())
+        .contains("Item:Mime=\"video/mp4\""));
     assert!(write_heic_motion_with_burst(&still, &video, &output, None).is_err());
     fs::remove_dir_all(root).unwrap();
 }

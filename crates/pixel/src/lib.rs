@@ -9,6 +9,7 @@ pub mod photos_cleanup;
 pub mod photos_probe;
 pub use burst::write_jpeg_burst;
 pub use heic_motion::write_heic_motion_with_burst;
+pub use heic_motion::write_heic_motion_with_burst_and_video_mime;
 use photobridge_core::{
     Asset, AssetKind, BurstMetadata, Error, Result, TargetPlan, TargetProcessor,
 };
@@ -51,6 +52,22 @@ pub fn write_jpeg_motion_with_burst(
     timestamp_us: Option<u64>,
     burst: Option<&BurstMetadata>,
 ) -> Result<()> {
+    write_jpeg_motion_with_burst_and_video_mime(jpeg, mp4, output, timestamp_us, burst, "video/mp4")
+}
+
+/// Package a JPEG and an already-compatible MP4 or QuickTime MOV without
+/// decoding either resource. The declared MIME must match the supplied video.
+pub fn write_jpeg_motion_with_burst_and_video_mime(
+    jpeg: &std::path::Path,
+    mp4: &std::path::Path,
+    output: &std::path::Path,
+    timestamp_us: Option<u64>,
+    burst: Option<&BurstMetadata>,
+    video_mime: &str,
+) -> Result<()> {
+    if !matches!(video_mime, "video/mp4" | "video/quicktime") {
+        return Err(Error::Unsupported("motion video MIME".into()));
+    }
     if jpeg == output
         || mp4 == output
         || (output.exists()
@@ -145,6 +162,14 @@ pub fn write_jpeg_motion_with_burst(
     };
     let mut video = File::open(mp4)?;
     let video_len = video.metadata()?.len();
+    if video_mime == "video/quicktime" && video_len > u32::MAX as u64 - 128 {
+        return Err(Error::Unsupported("motion MOV size".into()));
+    }
+    let mov_parts = (video_mime == "video/quicktime").then(|| jpeg_mov_tags(video_len as u32));
+    let video_tail_len = mov_parts
+        .as_ref()
+        .map_or(0, |(_, suffix)| suffix.len() as u64);
+    let image_padding = mov_parts.as_ref().map_or(0, |(prefix, _)| prefix.len());
     let mut header = [0u8; 12];
     video.read_exact(&mut header)?;
     if &header[4..8] != b"ftyp" || video_len < 16 {
@@ -168,7 +193,8 @@ pub fn write_jpeg_motion_with_burst(
         })
         .unwrap_or_default();
     let xmp = format!(
-        r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:GCamera="http://ns.google.com/photos/1.0/camera/" xmlns:Container="http://ns.google.com/photos/1.0/container/" xmlns:Item="http://ns.google.com/photos/1.0/container/item/"{hdr_ns} GCamera:MotionPhoto="1" GCamera:MotionPhotoVersion="1"{time}{burst_fields}{hdr_version}><Container:Directory><rdf:Seq><rdf:li rdf:parseType="Resource"><Container:Item Item:Mime="image/jpeg" Item:Semantic="Primary" Item:Length="0" Item:Padding="0"/></rdf:li>{gain_item}<rdf:li rdf:parseType="Resource"><Container:Item Item:Mime="video/mp4" Item:Semantic="MotionPhoto" Item:Length="{video_len}" Item:Padding="0"/></rdf:li></rdf:Seq></Container:Directory></rdf:Description></rdf:RDF></x:xmpmeta>"#
+        r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:GCamera="http://ns.google.com/photos/1.0/camera/" xmlns:Container="http://ns.google.com/photos/1.0/container/" xmlns:Item="http://ns.google.com/photos/1.0/container/item/"{hdr_ns} GCamera:MotionPhoto="1" GCamera:MotionPhotoVersion="1"{time}{burst_fields}{hdr_version}><Container:Directory><rdf:Seq><rdf:li rdf:parseType="Resource"><Container:Item Item:Mime="image/jpeg" Item:Semantic="Primary" Item:Length="0" Item:Padding="{image_padding}"/></rdf:li>{gain_item}<rdf:li rdf:parseType="Resource"><Container:Item Item:Mime="{video_mime}" Item:Semantic="MotionPhoto" Item:Length="{}" Item:Padding="0"/></rdf:li></rdf:Seq></Container:Directory></rdf:Description></rdf:RDF></x:xmpmeta>"#,
+        video_len + video_tail_len
     );
     let mut packet = XMP.to_vec();
     packet.extend(xmp.as_bytes());
@@ -202,7 +228,13 @@ pub fn write_jpeg_motion_with_burst(
             }
             None => out.write_all(&still[2..])?,
         }
+        if let Some((prefix, _)) = &mov_parts {
+            out.write_all(prefix)?;
+        }
         std::io::copy(&mut video, &mut out)?;
+        if let Some((_, suffix)) = &mov_parts {
+            out.write_all(suffix)?;
+        }
         out.sync_all()?;
         drop(out);
         std::fs::rename(&partial, output)?;
@@ -212,4 +244,32 @@ pub fn write_jpeg_motion_with_burst(
         let _ = std::fs::remove_file(&partial);
     }
     result
+}
+
+fn jpeg_mov_tags(video_len: u32) -> (Vec<u8>, Vec<u8>) {
+    let data_id = [0, 0, 0x30, 0x0a];
+    let version_id = [0, 0, 0x31, 0x0a];
+    let mut prefix = data_id.to_vec();
+    prefix.extend(16u32.to_le_bytes());
+    prefix.extend(b"MotionPhoto_Data");
+    let mut suffix = version_id.to_vec();
+    suffix.extend(19u32.to_le_bytes());
+    suffix.extend(b"MotionPhoto_Version");
+    suffix.extend(b"mpv3");
+    let data_len = prefix.len() as u32 + video_len;
+    let version_len = suffix.len() as u32;
+    let mut sefh = b"SEFH".to_vec();
+    sefh.extend(107u32.to_le_bytes());
+    sefh.extend(2u32.to_le_bytes());
+    sefh.extend(data_id);
+    sefh.extend((data_len + version_len).to_le_bytes());
+    sefh.extend(data_len.to_le_bytes());
+    sefh.extend(version_id);
+    sefh.extend(version_len.to_le_bytes());
+    sefh.extend(version_len.to_le_bytes());
+    let header_len = sefh.len() as u32;
+    sefh.extend(header_len.to_le_bytes());
+    sefh.extend(b"SEFT");
+    suffix.extend(sefh);
+    (prefix, suffix)
 }

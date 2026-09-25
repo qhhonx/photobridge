@@ -93,6 +93,19 @@ pub fn write_heic_motion_with_burst(
     output: &Path,
     burst: Option<&BurstMetadata>,
 ) -> Result<()> {
+    write_heic_motion_with_burst_and_video_mime(heic, mov, output, burst, "video/quicktime")
+}
+
+pub fn write_heic_motion_with_burst_and_video_mime(
+    heic: &Path,
+    mov: &Path,
+    output: &Path,
+    burst: Option<&BurstMetadata>,
+    video_mime: &str,
+) -> Result<()> {
+    if !matches!(video_mime, "video/mp4" | "video/quicktime") {
+        return Err(Error::Unsupported("motion video MIME".into()));
+    }
     if heic == output || mov == output || output.exists() {
         return Err(Error::Invalid("motion delivery destination".into()));
     }
@@ -226,7 +239,7 @@ pub fn write_heic_motion_with_burst(
         })
         .unwrap_or_default();
     let xmp = format!(
-        r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:GCamera="http://ns.google.com/photos/1.0/camera/" xmlns:Container="http://ns.google.com/photos/1.0/container/" xmlns:Item="http://ns.google.com/photos/1.0/container/item/" GCamera:MotionPhoto="1" GCamera:MotionPhotoVersion="1" GCamera:MotionPhotoPresentationTimestampUs="-1"{burst_fields}><Container:Directory><rdf:Seq><rdf:li rdf:parseType="Resource"><Container:Item Item:Mime="image/heic" Item:Semantic="Primary" Item:Length="0" Item:Padding="8"/></rdf:li><rdf:li rdf:parseType="Resource"><Container:Item Item:Mime="video/quicktime" Item:Semantic="MotionPhoto" Item:Length="{motion_length}" Item:Padding="0"/></rdf:li></rdf:Seq></Container:Directory></rdf:Description></rdf:RDF></x:xmpmeta>"#
+        r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:GCamera="http://ns.google.com/photos/1.0/camera/" xmlns:Container="http://ns.google.com/photos/1.0/container/" xmlns:Item="http://ns.google.com/photos/1.0/container/item/" GCamera:MotionPhoto="1" GCamera:MotionPhotoVersion="1" GCamera:MotionPhotoPresentationTimestampUs="-1"{burst_fields}><Container:Directory><rdf:Seq><rdf:li rdf:parseType="Resource"><Container:Item Item:Mime="image/heic" Item:Semantic="Primary" Item:Length="0" Item:Padding="8"/></rdf:li><rdf:li rdf:parseType="Resource"><Container:Item Item:Mime="{video_mime}" Item:Semantic="MotionPhoto" Item:Length="{motion_length}" Item:Padding="0"/></rdf:li></rdf:Seq></Container:Directory></rdf:Description></rdf:RDF></x:xmpmeta>"#
     );
     let xmp = xmp.as_bytes();
     let mut infe = vec![2, 0, 0, 1];
