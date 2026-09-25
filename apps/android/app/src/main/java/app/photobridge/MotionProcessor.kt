@@ -75,14 +75,21 @@ internal object MotionProcessor {
                 } finally { if (dated != still) dated?.delete() }
             }
             prepareStill(still, jpeg)
-            if (mp4.exists()) check(mp4.delete()) { "storage" }
-            try { transcode(context, video, mp4) }
-            catch (_: TimeoutCancellationException) { throw IOException("video_conversion_timeout") }
+            val keepOriginalVideo = directVideoMime != null && resumeLocator == null
+            val packagedVideo = if (keepOriginalVideo) video else {
+                if (mp4.exists()) check(mp4.delete()) { "storage" }
+                try { transcode(context, video, mp4) }
+                catch (_: TimeoutCancellationException) { throw IOException("video_conversion_timeout") }
+                mp4
+            }
             val partial = File(work, "output.motion.partial")
             if (partial.exists()) check(partial.delete()) { "storage" }
             val dated = MediaDates.prepare(context, jpeg, "image/jpeg", asset.optJSONObject("metadata"))
             try {
-                NativeBridge.request(JSONObject().put("op", "package_motion").put("jpeg", dated.path).put("mp4", mp4.path).put("output", motion.path).put("metadata", asset.optJSONObject("metadata") ?: JSONObject()))
+                NativeBridge.request(JSONObject().put("op", "package_motion")
+                    .put("jpeg", dated.path).put("mp4", packagedVideo.path).put("output", motion.path)
+                    .put("video_mime", if (keepOriginalVideo) requireNotNull(directVideoMime) else "video/mp4")
+                    .put("metadata", asset.optJSONObject("metadata") ?: JSONObject()))
             } finally { if (dated != jpeg) dated.delete() }
             return MediaPublisher.publishFile(context, motion, item, "image/jpeg", asset.optJSONObject("metadata"), existingOnly, resumeLocator = resumeLocator)
         } finally {
