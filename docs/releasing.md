@@ -11,6 +11,8 @@ pushing unrelated changes does not replace them. Never reuse or lower a build.
 The Vercel project uses the `site` directory and deploys every main push. Its feed
 endpoint returns the exact signed appcast bytes from the newest complete release.
 A draft or release missing either platform archive/manifests is not offered.
+The Mac feed is cached at the edge for at most 60 seconds, with browser caching
+disabled and no stale response window. Allow that interval after publication.
 
 The production project is `photobridge-app`, connected to this public repository
 with `main` as its production branch and `site` as its root directory. Website
