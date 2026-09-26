@@ -54,7 +54,11 @@ struct StoragePreferences: View {
       ).font(.headline).task { await model.refreshStorage() }
       if let snapshot = model.storage {
         if scope != .logs {
-          Text("storage_cache_description").font(.footnote).foregroundStyle(.secondary)
+          #if os(macOS)
+            Text("mac_storage_cache_description").font(.footnote).foregroundStyle(.secondary)
+          #else
+            Text("storage_cache_description").font(.footnote).foregroundStyle(.secondary)
+          #endif
           LabeledContent("storage_cache_used", value: bytes(snapshot.used_bytes))
           LabeledContent("storage_disk_free", value: bytes(snapshot.free_bytes))
           Picker(
@@ -89,7 +93,11 @@ struct StoragePreferences: View {
                 settings.auto_reclaim = value
                 Task { await model.saveStorage(settings) }
               }))
-          Text("storage_reclaim_note").font(.footnote).foregroundStyle(.secondary)
+          #if os(macOS)
+            Text("mac_storage_reclaim_note").font(.footnote).foregroundStyle(.secondary)
+          #else
+            Text("storage_reclaim_note").font(.footnote).foregroundStyle(.secondary)
+          #endif
           if snapshot.used_bytes == 0 {
             Text("storage_cache_empty").foregroundStyle(.secondary)
           } else {

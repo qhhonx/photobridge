@@ -25,6 +25,24 @@ import AVFoundation
     precondition(prepared.metadata["created_at_ms"] == String(Int64(expected.timeIntervalSince1970 * 1000)))
     let after = try Data(contentsOf: photo)
     precondition(after == before, "Metadata inspection modified source bytes")
+    let corrupt = root.appendingPathComponent("corrupt.jpg")
+    let corruptBytes = Data("not an image".utf8)
+    try corruptBytes.write(to: corrupt)
+    let corruptEntry = FolderEntry(relative: "corrupt.jpg", source_id: "bad", revision: "1", size: UInt64(corruptBytes.count), media_type: "image/jpeg", modified_ms: 1)
+    do { _ = try await FolderMedia.prepare(root: root, entry: corruptEntry); preconditionFailure("Corrupt media was accepted") }
+    catch FolderMediaError.unsupported {}
+    let corruptAfter = try Data(contentsOf: corrupt)
+    precondition(corruptAfter == corruptBytes)
+    let missing = FolderEntry(relative: "gone.jpg", source_id: "gone", revision: "1", size: 1, media_type: "image/jpeg", modified_ms: 1)
+    do { _ = try await FolderMedia.prepare(root: root, entry: missing); preconditionFailure("Missing media was accepted") }
+    catch FolderMediaError.changed {}
+    let privatePhoto = root.appendingPathComponent("private.jpg")
+    try before.write(to: privatePhoto)
+    try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: privatePhoto.path)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: privatePhoto.path) }
+    let privateEntry = FolderEntry(relative: "private.jpg", source_id: "private", revision: "1", size: UInt64(before.count), media_type: "image/jpeg", modified_ms: 1)
+    do { _ = try await FolderMedia.prepare(root: root, entry: privateEntry); preconditionFailure("Permission failure was hidden") }
+    catch let error as CocoaError { precondition(error.code == .fileReadNoPermission) }
     // Apple paired-video identity and capture time are read without conversion.
     let movie = root.appendingPathComponent("sample.mov")
     let writer = try AVAssetWriter(outputURL: movie, fileType: .mov)

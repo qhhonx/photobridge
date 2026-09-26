@@ -10,12 +10,17 @@ struct FolderSourcesPage: View {
   }
   @State private var adding: URL?
   @State private var removing: String?
+  @State private var showHelp = false
   var body: some View {
-    VStack(alignment: .leading, spacing: 20) {
-      HStack {
-        Spacer()
-        Button { choose() } label: { Label("folder_add", systemImage: "folder.badge.plus") }
-          .disabled(!backup.ready)
+    VStack(alignment: .leading, spacing: 14) {
+      if backup.paused {
+        HStack {
+          Label("folder_global_paused", systemImage: "pause.circle")
+          Spacer()
+          Button("mac_resume_all") { Task { await backup.setPaused(false) } }
+            .disabled(!backup.ready || backup.pairing == nil)
+        }.font(.callout).padding(12)
+          .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
       }
       if let selection, let source = folders.sources.first(where: { $0.id == selection }) {
         Button { self.selection = nil } label: { Label("sources_back", systemImage: "chevron.left") }
@@ -34,7 +39,26 @@ struct FolderSourcesPage: View {
         }
       }
       if let error = folders.error { Text(error).font(.caption).foregroundStyle(.orange) }
-    }.padding(28).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }.padding(20).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      .toolbar {
+        ToolbarItemGroup(placement: .primaryAction) {
+          Button { showHelp = true } label: { Label("folder_help", systemImage: "questionmark.circle") }
+            .labelStyle(.iconOnly).help("folder_help")
+          Button { choose() } label: { Label("folder_add", systemImage: "folder.badge.plus") }
+            .labelStyle(.titleAndIcon).disabled(!backup.ready)
+        }
+      }
+      .sheet(isPresented: $showHelp) {
+        VStack(alignment: .leading, spacing: 16) {
+          Text("folder_help").font(.title2)
+          Text("folder_automatic").font(.headline)
+          Text("folder_automatic_guide")
+          Text("folder_backup_now").font(.headline)
+          Text("folder_manual_guide")
+          Text("folder_readonly_note").foregroundStyle(.secondary)
+          HStack { Spacer(); Button("settings_done") { showHelp = false }.keyboardShortcut(.defaultAction) }
+        }.padding(24).frame(width: 440)
+      }
       .sheet(isPresented: Binding(get: { adding != nil }, set: { if !$0 { adding = nil } })) {
         if let adding { AddFolderSheet(url: adding, folders: folders) { self.adding = nil } }
       }
@@ -54,71 +78,67 @@ private struct FolderSourceCard: View {
   let source: FolderSource
   let open: () -> Void
   let remove: () -> Void
-  @State private var showInfo = false
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      HStack(alignment: .top, spacing: 14) {
-        Image(systemName: "folder").font(.title2).foregroundStyle(.tint).frame(width: 30)
-        VStack(alignment: .leading, spacing: 6) {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        Image(systemName: "folder").font(.title2).foregroundStyle(.tint)
+        VStack(alignment: .leading, spacing: 5) {
           Text(folders.displayName(source)).font(.headline).lineLimit(1)
           Text(folders.displayPath(source)).font(.caption).foregroundStyle(.secondary)
             .lineLimit(1).truncationMode(.middle).help(folders.displayPath(source))
-          Text(LocalizedStringKey(folders.phases[source.id] ?? "folder_scanning"))
-            .font(.callout).foregroundStyle(.secondary)
-          if let summary = folders.summaries[source.id] {
-            Text(String(format: NSLocalizedString("folder_count", comment: ""), summary.files,
-              ByteCountFormatter.string(fromByteCount: Int64(summary.bytes), countStyle: .file)))
-              .font(.caption).foregroundStyle(.secondary)
-          }
-          if !source.issues.isEmpty {
-            Button { open() } label: {
-              Text(String(format: NSLocalizedString("folder_issues", comment: ""), source.issues.count))
-            }.buttonStyle(.link).foregroundStyle(.orange)
-          }
-        }.frame(maxWidth: .infinity, alignment: .leading)
-        Button { showInfo.toggle() } label: { Image(systemName: "info.circle") }
-          .buttonStyle(.plain).foregroundStyle(.secondary).help("folder_info")
-          .accessibilityLabel("folder_info")
-          .popover(isPresented: $showInfo) {
-            VStack(alignment: .leading, spacing: 12) {
-              Text("folder_info").font(.headline)
-              if let checked = source.lastCheck {
-                Text(NSLocalizedString("folder_last_check", comment: "") + " " + checked.formatted(date: .abbreviated, time: .shortened))
-              }
-              if let summary = folders.summaries[source.id], summary.unsupported > 0 {
-                Text(String(format: NSLocalizedString("folder_unsupported", comment: ""), summary.unsupported))
-              }
-              Text("folder_check").font(.headline)
-              Text("folder_check_help")
-              Text("folder_backup_now").font(.headline)
-              Text("folder_backup_help")
-              Text("folder_stop_preparing").font(.headline)
-              Text("folder_pause_help")
-              Text("folder_readonly_note").foregroundStyle(.secondary)
-            }.font(.callout).padding(18).frame(width: 320, alignment: .leading)
-          }
+        }
+        Spacer()
         Menu {
-          Button("folder_reveal") {
-            if let url = folders.sourceURL(source) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+          Button("folder_check") { folders.check(source.id, userInitiated: true) }
+          Button("folder_reveal") { folders.reveal(source) }
+          if let checked = source.lastCheck {
+            Text(NSLocalizedString("folder_last_check", comment: "") + " " + checked.formatted(date: .abbreviated, time: .shortened))
+          }
+          if let summary = folders.summaries[source.id], summary.unsupported > 0 {
+            Text(String(format: NSLocalizedString("folder_unsupported", comment: ""), summary.unsupported))
           }
           Divider()
           Button("folder_remove", role: .destructive, action: remove)
         } label: { Label("folder_more", systemImage: "ellipsis") }
           .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-          .help("folder_more")
+      }
+      HStack(spacing: 12) {
+        FolderSourceStatus(folders: folders, backup: backup, source: source)
+        if let summary = folders.summaries[source.id] {
+          Text(String(format: NSLocalizedString("folder_count", comment: ""), summary.files,
+            ByteCountFormatter.string(fromByteCount: Int64(summary.bytes), countStyle: .file)))
+            .font(.caption).foregroundStyle(.secondary)
+        }
+        if !source.issues.isEmpty {
+          Button(action: open) { Text(String(format: NSLocalizedString("folder_issues", comment: ""), source.issues.count)) }
+            .buttonStyle(.link).foregroundStyle(.orange)
+        }
       }
       FolderSourceActions(folders: folders, backup: backup, source: source, open: open)
-      Divider()
-      HStack(spacing: 16) {
-        Text("folder_automatic").font(.callout).help("folder_automatic_hint")
-        Spacer(minLength: 12)
-        Toggle("folder_automatic", isOn: Binding(get: { source.automatic },
-          set: { folders.setAutomatic(source.id, $0) }))
-          .labelsHidden().toggleStyle(.switch).controlSize(.small)
-      }
-    }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+    }.padding(16).frame(maxWidth: .infinity, alignment: .leading)
       .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
   }
+}
+private struct FolderSourceStatus: View {
+  @ObservedObject var folders: FolderSources
+  @ObservedObject var backup: BackupModel
+  let source: FolderSource
+  private var key: String {
+    let phase = folders.phases[source.id]
+    if let phase, ["folder_scanning", "folder_scan_failed", "folder_offline"].contains(phase) { return phase }
+    if folders.actionMessages[source.id] == "folder_check_finished",
+      let checked = source.lastCheck, Date().timeIntervalSince(checked) < 15 { return "folder_check_finished" }
+    if source.enabled || !(source.retryPaths ?? []).isEmpty {
+      if backup.paused {
+        return source.automaticActive ? "folder_auto_enabled" : source.manualActive ? "folder_manual_queued" : "folder_retry_waiting"
+      }
+      if backup.pairing == nil { return "folder_pair_first" }
+      if let phase, !["folder_up_to_date", "folder_paused", "folder_manual_idle"].contains(phase) { return phase }
+      return source.automaticActive ? "folder_auto_active" : "folder_manual_active"
+    }
+    return "folder_manual_idle"
+  }
+  var body: some View { Text(LocalizedStringKey(key)).font(.callout).foregroundStyle(.secondary) }
 }
 private struct FolderSourceActions: View {
   @ObservedObject var folders: FolderSources
@@ -126,32 +146,37 @@ private struct FolderSourceActions: View {
   let source: FolderSource
   var open: (() -> Void)? = nil
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: 6) {
       ViewThatFits(in: .horizontal) {
-        HStack(spacing: 12) { buttons }
-        VStack(alignment: .leading, spacing: 10) { buttons }
+        HStack(spacing: 10) { buttons; Spacer(minLength: 12); automatic }
+        VStack(alignment: .leading, spacing: 10) { HStack(spacing: 10) { buttons }; automatic }
       }
-      if let message = folders.actionMessages[source.id] {
+      if let message = folders.actionMessages[source.id],
+        (message != "folder_global_wait" || backup.paused),
+        !["folder_check_finished", "folder_check_running", "folder_backup_requested", "folder_pause_explanation", "folder_automatic_on", "folder_automatic_off"].contains(message) {
         Text(LocalizedStringKey(message)).font(.caption).foregroundStyle(.secondary)
           .accessibilityIdentifier("folder.action_feedback")
       }
-      if backup.pairing == nil { Text("folder_pair_first").font(.caption).foregroundStyle(.secondary) }
     }
+  }
+  private var automatic: some View {
+    Toggle("folder_automatic", isOn: Binding(get: { source.automaticActive },
+      set: { folders.setAutomatic(source.id, $0) }))
+      .toggleStyle(.switch).controlSize(.small).fixedSize()
+      .help("folder_automatic_hint").disabled(folders.starting.contains(source.id))
   }
   @ViewBuilder private var buttons: some View {
     if let open {
-      Button(action: open) { Label("folder_open", systemImage: "folder") }.help("folder_open_help")
+      Button(action: open) { Label("folder_open", systemImage: "folder") }
     }
-    Button { folders.check(source.id, userInitiated: true) } label: {
-      Label("folder_check", systemImage: "arrow.clockwise")
-    }.help("folder_check_help").disabled(!backup.ready || folders.starting.contains(source.id))
-    Button { Task { await folders.start(source.id) } } label: {
-      Label(folders.starting.contains(source.id) ? "folder_starting" : "folder_backup_now", systemImage: "arrow.up.circle")
-    }.help("folder_backup_help").disabled(!backup.ready || backup.pairing == nil || folders.starting.contains(source.id))
-    if source.enabled {
-      Button { folders.pause(source.id) } label: {
-        Label("folder_stop_preparing", systemImage: "pause.circle")
-      }.help("folder_pause_help").disabled(folders.starting.contains(source.id))
+    if source.manualActive {
+      Button { folders.pause(source.id) } label: { Label("folder_stop_manual", systemImage: "stop.circle") }
+        .help("folder_pause_help").disabled(folders.starting.contains(source.id))
+    } else {
+      Button { Task { await folders.start(source.id) } } label: {
+        Label(folders.starting.contains(source.id) ? "folder_starting" : "folder_backup_now", systemImage: "arrow.up.circle")
+      }.help("folder_backup_help")
+        .disabled(!backup.ready || backup.pairing == nil || folders.starting.contains(source.id))
     }
   }
 }
@@ -205,7 +230,7 @@ private struct FolderSourceDetail: View {
           Text(folders.displayName(source)).font(.title3.weight(.medium))
           Text(folders.displayPath(source)).font(.caption).foregroundStyle(.secondary)
             .lineLimit(1).truncationMode(.middle)
-          Text(LocalizedStringKey(folders.phases[source.id] ?? "folder_scanning")).foregroundStyle(.secondary)
+          FolderSourceStatus(folders: folders, backup: backup, source: source)
         }
         Spacer()
       }
@@ -215,15 +240,19 @@ private struct FolderSourceDetail: View {
           Label("folder_issue_details", systemImage: showIssues ? "chevron.down" : "chevron.right")
         }.buttonStyle(.plain).accessibilityIdentifier("folder.issues")
         if showIssues {
-          ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-              ForEach(source.issues.keys.sorted(), id: \.self) { path in
-                Text(path).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                  .truncationMode(.middle).help(path).textSelection(.enabled)
-                  .frame(maxWidth: .infinity, alignment: .leading)
+          VStack(alignment: .leading, spacing: 8) {
+            Text("folder_issues_explanation").font(.caption).foregroundStyle(.secondary)
+            ScrollView {
+              LazyVStack(alignment: .leading, spacing: 12) {
+                ForEach(source.issues.keys.sorted(), id: \.self) { path in
+                  FolderIssueRow(folders: folders, backup: backup, source: source, path: path)
+                  Divider()
+                }
               }
-            }
-          }.frame(maxHeight: 140)
+            }.frame(height: min(250, source.issues.keys.reduce(CGFloat(0)) { total, path in
+              total + (source.issueDetails?[path]?.detail == nil ? 84 : 120)
+            }))
+          }
         }
       }
       HStack {
@@ -242,7 +271,8 @@ private struct FolderSourceDetail: View {
           Label(LocalizedStringKey(layout == "folders"
             ? (treeDescending ? "folder_sort_name_desc" : "folder_sort_name_asc") : sort.title),
             systemImage: "arrow.up.arrow.down")
-        }.help("folder_sort").accessibilityIdentifier("folder.sort")
+        }.menuStyle(.borderlessButton).fixedSize(horizontal: true, vertical: true)
+          .help("folder_sort").accessibilityIdentifier("folder.sort")
         Spacer()
         Picker("folder_list_layout", selection: $layout) {
           Text("folder_list_flat").tag("flat")
@@ -300,6 +330,7 @@ private struct FolderSourceDetail: View {
       }
       if let error { Text(error).foregroundStyle(.orange).font(.caption) }
     }
+    .onAppear { showIssues = !source.issues.isEmpty }
     .task(id: "\(source.id)|\(folders.indexRevision)|\(layout)|\(sort.rawValue)|\(treeDescending)") {
       if layout == "folders" { await tree.refresh(source: source.id, folders: folders, descending: treeDescending) }
       else { await reload() }
@@ -341,6 +372,32 @@ private struct FolderSourceDetail: View {
       }
       entries = result; more = result.count > 0 && result.count % 100 == 0
     } catch { if request == expected, !Task.isCancelled { self.error = error.localizedDescription } }
+  }
+}
+
+private struct FolderIssueRow: View {
+  @ObservedObject var folders: FolderSources
+  @ObservedObject var backup: BackupModel
+  let source: FolderSource
+  let path: String
+  private var issue: FolderIssue? { source.issueDetails?[path] }
+  private var retrying: Bool { (source.retryPaths ?? []).contains(path) }
+  var body: some View {
+    HStack(alignment: .top, spacing: 16) {
+      Image(systemName: "exclamationmark.triangle").foregroundStyle(.orange)
+      VStack(alignment: .leading, spacing: 4) {
+        Text((path as NSString).lastPathComponent).font(.callout.weight(.medium)).lineLimit(1)
+        Text(path).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+          .truncationMode(.middle).help(path).textSelection(.enabled)
+        Text(LocalizedStringKey("folder_issue_" + (issue?.reason ?? "unknown"))).font(.callout)
+        if let detail = issue?.detail { Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2).help(detail) }
+      }.frame(maxWidth: .infinity, alignment: .leading)
+      VStack(alignment: .trailing, spacing: 8) {
+        Button("folder_reveal") { folders.reveal(source, relative: path) }
+        Button(retrying ? "folder_retry_waiting" : "retry_task") { Task { await folders.retry(source.id, relative: path) } }
+          .disabled(retrying || !backup.ready || backup.pairing == nil)
+      }.fixedSize()
+    }.accessibilityIdentifier("folder.issue_row")
   }
 }
 

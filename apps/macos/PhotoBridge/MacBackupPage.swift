@@ -55,7 +55,7 @@ struct MacBackupPage: View {
                 Button("retry_task") { Task { await model.open() } }
               } else { Text("backup_initializing").foregroundStyle(.secondary) }
             } else if model.pairing == nil {
-              Text("backup_pair_first").foregroundStyle(.secondary)
+              Text("mac_pair_first").foregroundStyle(.secondary)
               Button("pair_receiver_desktop", action: pair).buttonStyle(.borderedProminent)
             } else if model.summary.total == 0 {
               Text("tasks_empty").foregroundStyle(.secondary)

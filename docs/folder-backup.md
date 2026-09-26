@@ -10,16 +10,19 @@ there is no folder picker, watcher or folder-source Rust dependency in its build
 2. Choose whether to include existing files and whether to automatically back up
    new and changed files. With existing files excluded, the first completed scan
    establishes a baseline; subsequent additions and changes are eligible.
-3. The source is scanned in batches. Pair a receiver if necessary. Global pause
-   still applies; **Back Up** starts/resumes preparation and also
-   allows an explicit backup to a newly paired receiver.
+3. Pair a receiver if necessary. **Automatic Backup** continuously handles new
+   and changed photos/videos. Turning it off stops adding new tasks; queued files
+   continue transferring. **Back Up Existing Files** includes unbacked current
+   files. With automatic backup off, this is one run and its button changes to
+   **Stop This Backup** until preparation finishes. Global pause still applies;
+   neither operation implicitly resumes all sources.
 4. Open the folder source to browse indexed files and receiver receipts. The
    transfer list is shared with the photo library, with source labels and a source
    filter. **Received** means the paired receiver verified the resources, not
    that Google Photos completed its cloud backup.
 
-**Pause** stops further preparation from a source, but does not cancel
-already prepared transfers. Use global pause to suspend all transfers. Removing
+**Stop This Backup** stops further preparation from a manual run, but does not
+cancel already prepared transfers. Use global pause to suspend all transfers. Removing
 an origin stops scanning and keeps prepared tasks, receiver data and originals.
 
 ## Automatic checks and external drives
@@ -63,7 +66,7 @@ owned staging, checked against their indexed revision and identity, then hashed
 and passed to the existing Rust queue. Large assets wait when staging allowance is
 insufficient; temporary deferral lets other assets proceed. Increase the shared
 cache budget if a single asset is larger than it. Failed media inspection can be
-reviewed in the source page and retried with **Back Up**.
+reviewed in the source page and retried with **Back Up Existing Files**.
 
 On Unix, file identity uses the inode within the registered source/volume;
 renames within the source do not alone require retransmission. Content changes
@@ -92,22 +95,35 @@ EXIF timezone handling, real FSEvents and mobile build isolation. Physical exter
 hardware and a 12 TB dataset still require user testing; synthetic tests do not
 establish their performance or Google Photos cloud completion.
 
-## Source UI and follow-up work
+## Source controls and failed files
 
-The Mac sidebar separates sources, backup tasks and management. Backup overview
-shows aggregate status; folder sources manage the folders themselves. Source
-cards display original folder names and paths. System Library has its own sidebar
-entry and is not repeated on this page. Files, Check, Back Up and Pause are visible
-actions, with hover explanations. Secondary statistics and source information are
-available from the information button. More contains Show in Finder and
-Remove source. The automatic setting has its own row with the switch at the right.
+Add Folder and shared folder guidance live in the window toolbar. Cards show
+original names, paths, compact state/counts, View Files, one manual-run action,
+and the Automatic Backup switch. More contains Rescan, Show in Finder, source
+statistics and Remove Source. Guidance is shared once rather than repeated in
+an information popup on every card. The manual button changes to Stop This
+Backup for an active manual run; automatic backup is stopped with its switch.
+Sources paused by older versions migrate to an off switch without resuming work.
 
-Manual checks immediately report that a scan is scheduled, then running or
-complete. Backup starts report scheduling and surface native errors instead of
-silently ignoring them. Pausing immediately explains that queued transfers
-continue. Files needing attention expand inside a bounded area of the existing
-page; long paths cannot widen the navigation split. Entering and leaving folder
-details restores the sidebar, and the Folders return button remains available.
+A global pause banner offers explicit Resume All Backups. Per-folder actions
+respect this pause and the current paired receiver. Settings separates System
+Library discovery/import, folder switches and shared pause, transfer and cache
+controls. Mac help distinguishes Photos permissions and iCloud originals from
+folder bookmarks, drive availability and exported media grouping. iOS settings
+remain photo-library only.
+
+Files Not Backed Up lists preparation failures, including the original path,
+recorded reason, Show in Finder and Retry. Unreadable media, access denial and
+missing files have distinct explanations. Legacy failures honestly state that no
+reason was recorded; retry can obtain a current error. A targeted retry clears
+only that file's skip and can prepare that file while automatic/manual backup is
+off. It does not include unrelated baseline-excluded files or change global
+pause. Requests and failure details survive restart. Receipts, stability checks,
+capacity deferral and receiver isolation remain in effect; completed jobs are
+not duplicated. Pausing/stopping clears pending retries, and asynchronous media
+inspection rechecks current pause, source enablement and receiver before enqueue.
+Directory details retain the sidebar and the Folders return button. Sorting is
+an intrinsic-width menu rather than a control that fills the file-list header.
 
 The menu-bar status item already exists (`MenuBarExtra` / `MacStatusMenu`). It
 shows transfer status and offers open-window, pause/resume, settings, update and

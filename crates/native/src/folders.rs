@@ -22,6 +22,8 @@ pub enum Command {
     },
     RetryIgnored {
         source: String,
+        #[serde(default)]
+        relative: Option<String>,
     },
     States {
         source: String,
@@ -48,6 +50,8 @@ pub enum Command {
     Candidates {
         source: String,
         receiver: String,
+        #[serde(default)]
+        relative: Option<String>,
     },
     Page {
         source: String,
@@ -159,8 +163,12 @@ pub fn call(command: Command) -> Result<Value> {
             index.ignore(&source, &relative, &revision)?;
             Ok(json!({}))
         }
-        Command::RetryIgnored { source } => {
-            index.retry_ignored(&source)?;
+        Command::RetryIgnored { source, relative } => {
+            if let Some(relative) = relative {
+                index.retry_entry(&source, &relative)?;
+            } else {
+                index.retry_ignored(&source)?;
+            }
             Ok(json!({}))
         }
         Command::Begin {
@@ -184,11 +192,16 @@ pub fn call(command: Command) -> Result<Value> {
             Ok(json!({}))
         }
         Command::Summary { source } => Ok(serde_json::to_value(index.summary(&source, 0)?)?),
-        Command::Candidates { source, receiver } => Ok(serde_json::to_value(index.candidates(
+        Command::Candidates {
+            source,
+            receiver,
+            relative,
+        } => Ok(serde_json::to_value(index.candidates_for(
             &source,
             &receiver,
             photobridge_folder_source::millis(SystemTime::now()),
             8,
+            relative.as_deref(),
         )?)?),
         Command::Page {
             source,

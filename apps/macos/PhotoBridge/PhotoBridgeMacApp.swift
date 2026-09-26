@@ -125,7 +125,7 @@ struct MacWorkspace: View {
             TransferList(model: model, filter: transferFilter, sourceOptions: [("library", NSLocalizedString("source_system_library", comment: ""))] + folders.sources.map { ($0.id, folders.displayName($0)) }).id(transferFilter).padding(28)
           }
           if destination == .settings {
-            MacPreferences(model: model).padding(20)
+            MacPreferences(model: model, folders: folders, showFolders: { destination = .sources }).padding(20)
           }
           if destination == .receiver {
             ScrollView { ReceiverPage(model: model, pair: { pairSheet = true }).padding(32) }
@@ -162,6 +162,16 @@ struct MacWorkspace: View {
       }
     }
     .navigationSplitViewStyle(.balanced)
+    .onReceive(NotificationCenter.default.publisher(for: Notification.Name("PhotoBridgeShowFolders"))) { _ in
+      UserDefaults.standard.removeObject(forKey: "macRequestedDestination")
+      folders.selectedSourceID = nil; destination = .sources; columnVisibility = .all
+    }
+    .onAppear {
+      if UserDefaults.standard.string(forKey: "macRequestedDestination") == "sources" {
+        UserDefaults.standard.removeObject(forKey: "macRequestedDestination")
+        destination = .sources
+      }
+    }
     .onChange(of: folders.selectedSourceID) { _, _ in columnVisibility = .all }
     .task { await model.open(); await folders.open() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in folders.wake() }

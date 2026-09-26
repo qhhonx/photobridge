@@ -108,6 +108,8 @@ extension BackupModel {
 
 struct HistoricalImportSettings: View {
   @ObservedObject var model: BackupModel
+  var title: LocalizedStringKey = "history_title"
+  var explanation: LocalizedStringKey = "history_explanation"
   var body: some View {
     Section {
       if let status = model.historicalImport {
@@ -132,7 +134,7 @@ struct HistoricalImportSettings: View {
         Text(error).foregroundStyle(.orange)
         Button("retry_task") { Task { await model.refreshHistoricalImport(); await model.scanHistoricalImport() } }
       }
-    } header: { Text("history_title") } footer: { Text("history_explanation") }
+    } header: { Text(title) } footer: { Text(explanation) }
       .disabled(!model.ready || model.pairing == nil || model.changingHistory)
       .task { await model.refreshHistoricalImport() }
   }

@@ -292,7 +292,17 @@ impl Index {
         now: u64,
         limit: usize,
     ) -> Result<Vec<Entry>> {
-        let mut stmt=self.conn.prepare("SELECT relative,identity,revision,size,mime,modified FROM files f WHERE source=?1 AND present=1 AND observed<=?3 AND NOT EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND (i.until_ms=0 OR i.until_ms>?5)) AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?2 OR s.receiver='@baseline') AND s.revision=f.revision) ORDER BY modified DESC,relative LIMIT ?4").map_err(db)?;
+        self.candidates_for(source, receiver, now, limit, None)
+    }
+    pub fn candidates_for(
+        &self,
+        source: &str,
+        receiver: &str,
+        now: u64,
+        limit: usize,
+        relative: Option<&str>,
+    ) -> Result<Vec<Entry>> {
+        let mut stmt=self.conn.prepare("SELECT relative,identity,revision,size,mime,modified FROM files f WHERE source=?1 AND present=1 AND observed<=?3 AND (?6 IS NULL OR relative=?6) AND NOT EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND (i.until_ms=0 OR i.until_ms>?5)) AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?2 OR s.receiver='@baseline') AND s.revision=f.revision) ORDER BY modified DESC,relative LIMIT ?4").map_err(db)?;
         let rows = stmt
             .query_map(
                 params![
@@ -300,7 +310,8 @@ impl Index {
                     receiver,
                     now.saturating_sub(10_000) as i64,
                     limit.clamp(1, 200) as i64,
-                    now as i64
+                    now as i64,
+                    relative
                 ],
                 |r| {
                     let identity: String = r.get(1)?;
@@ -455,7 +466,7 @@ impl Index {
 
 impl Index {
     pub fn entry(&self, source: &str, relative: &str) -> Result<Entry> {
-        self.conn.query_row("SELECT relative,identity,revision,size,mime,modified FROM files WHERE source=?1 AND relative=?2 AND present=1",params![source,relative],|r| {let identity:String=r.get(1)?;Ok(Entry{relative:r.get(0)?,source_id:asset_id(source,&identity),revision:r.get(2)?,size:r.get::<_,i64>(3)? as u64,media_type:r.get(4)?,modified_ms:r.get::<_,i64>(5)? as u64,job_id:None})}).map_err(db)
+        self.conn.query_row("SELECT relative,identity,revision,size,mime,modified FROM files WHERE source=?1 AND relative=?2 AND present=1",params![source,relative],|r| {let identity:String=r.get(1)?;Ok(Entry{relative:r.get(0)?,source_id:asset_id(source,&identity),revision:r.get(2)?,size:r.get::<_,i64>(3)? as u64,media_type:r.get(4)?,modified_ms:r.get::<_,i64>(5)? as u64,job_id:None})}).optional().map_err(db)?.ok_or(Error::NotFound)
     }
 }
 
@@ -466,6 +477,15 @@ impl Index {
     }
     pub fn ignore(&self, source: &str, relative: &str, revision: &str) -> Result<()> {
         self.conn.execute("INSERT INTO ignored(source,relative,revision) VALUES(?1,?2,?3) ON CONFLICT(source,relative) DO UPDATE SET revision=excluded.revision,until_ms=0",params![source,relative,revision]).map_err(db)?;
+        Ok(())
+    }
+    pub fn retry_entry(&self, source: &str, relative: &str) -> Result<()> {
+        self.conn
+            .execute(
+                "DELETE FROM ignored WHERE source=?1 AND relative=?2",
+                params![source, relative],
+            )
+            .map_err(db)?;
         Ok(())
     }
     pub fn retry_ignored(&self, source: &str) -> Result<()> {

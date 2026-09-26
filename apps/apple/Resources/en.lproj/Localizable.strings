@@ -206,7 +206,7 @@
 // Desktop navigation and settings states
 "sidebar_manage" = "Manage";
 "backup_overview_heading" = "Backup overview";
-"backup_overview_description" = "Follow your originals from the library to your receiver.";
+"backup_overview_description" = "Track backups from System Library and folders to the receiver.";
 "backup_choose_library" = "Choose from library";
 "backup_initializing" = "Opening your backup…";
 "storage_loading" = "Loading storage settings…";
@@ -415,9 +415,9 @@
 "source_system_library" = "System Library";
 "folder_add" = "Add folder";
 "folder_choose" = "Choose folder";
-"folder_open" = "Files";
-"folder_check" = "Check";
-"folder_backup_now" = "Back Up";
+"folder_open" = "View files";
+"folder_check" = "Rescan";
+"folder_backup_now" = "Back up existing files";
 "folder_stop_preparing" = "Pause";
 "folder_remove" = "Remove source";
 "folder_remove_note" = "Stop checking this folder. Prepared tasks and received files remain. Source files are never deleted.";
@@ -435,7 +435,7 @@
 "folder_receiver_changed" = "Receiver changed; confirm backup to the current device";
 "folder_queue_wait" = "Transferring; more files will be prepared shortly";
 "folder_up_to_date" = "Checked";
-"folder_attention" = "Some Files Need Attention";
+"folder_attention" = "Some files were not backed up";
 "folder_preparing" = "Preparing originals…";
 "folder_cache_wait" = "Waiting for staging space";
 "folder_offline" = "Waiting for the drive or read access";
@@ -443,9 +443,9 @@
 "folder_load_more" = "Load more";
 "folder_empty" = "No supported photos or videos found yet.";
 "state_excluded" = "Excluded from initial backup";
-"folder_issues" = "%ld files need attention";
+"folder_issues" = "%ld files not backed up";
 "folder_unsupported" = "Skipped %llu Other Files";
-"folder_issue_details" = "Files Needing Attention";
+"folder_issue_details" = "Files not backed up";
 "folder_settling" = "Waiting for copied files to settle…";
 "task_source_filter" = "Source";
 "task_source_all" = "All sources";
@@ -457,7 +457,7 @@
 
 "folder_reveal" = "Show in Finder";
 
-"folder_automatic_hint" = "Detect new and changed photos and videos in this folder.";
+"folder_automatic_hint" = "Keep backing up new and modified files. Turning this off stops new tasks; queued files continue transferring.";
 
 "folder_check_requested" = "Waiting to Check…";
 
@@ -492,11 +492,8 @@
 "folder_list_tree" = "Folders";
 
 "folder_sources_empty" = "Add a Folder to Back Up Its Photos and Videos.";
-"folder_info" = "Folder Information";
-"folder_open_help" = "Browse Photos and Videos in This Folder.";
-"folder_check_help" = "Scan the Folder. New and Modified Files Are Queued When Backup Is Enabled.";
-"folder_backup_help" = "Back Up Existing Photos and Videos and Retry Failed Files. Unchanged Backed-Up Files Are Skipped.";
-"folder_pause_help" = "Pause New Tasks. Queued Files Continue Transferring.";
+"folder_backup_help" = "Back up existing files that are not yet backed up. Unchanged backed-up files are skipped.";
+"folder_pause_help" = "Stop adding tasks. Queued files continue transferring.";
 "folder_sort" = "Sort";
 "folder_sort_modified_desc" = "Modified: Newest First";
 "folder_sort_modified_asc" = "Modified: Oldest First";
@@ -506,3 +503,44 @@
 "folder_sort_size_asc" = "Size: Smallest First";
 "folder_sort_name_asc" = "Name: A–Z";
 "folder_sort_name_desc" = "Name: Z–A";
+
+"folder_help" = "Folder backup help";
+"folder_automatic_guide" = "Automatically back up new and modified photos and videos. Turning this off stops new tasks; queued files continue transferring.";
+"folder_manual_guide" = "Back Up Existing Files processes files that have not been backed up. Unchanged backed-up files are skipped. When automatic backup is off, it stops after this run.";
+"folder_stop_manual" = "Stop this backup";
+"folder_auto_active" = "Watching for new or modified files";
+"folder_manual_active" = "This backup is running";
+"folder_manual_idle" = "Manual backup";
+"folder_global_paused" = "All backups paused";
+"folder_global_wait" = "Scheduled. Resume all backups to continue.";
+"folder_issues_explanation" = "These files failed during reading or preparation and have not been queued. Check the originals in Finder, fix them, then retry.";
+"folder_issue_invalid_media" = "Cannot prepare this file as a photo or video.";
+"folder_issue_unreadable_media" = "Cannot read the media. The file may be damaged or have a mismatched extension.";
+"folder_issue_permission" = "No permission to read this file.";
+"folder_issue_missing" = "The file was moved or deleted; the original path is unavailable.";
+"folder_issue_unknown" = "The earlier version did not record a reason. Retry to get the specific error.";
+"folder_retry_requested" = "File retry scheduled";
+"folder_retry_waiting" = "Retry pending";
+"mac_library_automatic_note" = "System Library only. Backs up photos added after enabling this option. Back up existing photos separately below.";
+"mac_library_existing" = "System Library: existing photos";
+"mac_library_existing_note" = "Scan existing photos, videos, Live Photos and bursts you allow access to. Pausing the scan leaves queued transfers running.";
+"mac_folder_settings_note" = "Automatically backs up photos and videos, including subfolders. Each folder has its own setting. Manage existing and failed files on the Folders page.";
+"mac_manage_folders" = "Manage folders";
+"mac_all_sources" = "All sources";
+"mac_global_pause" = "Pause all backups";
+"mac_global_pause_note" = "Pauses backups and transfers from System Library and folders. Folders can still scan; resume to continue scheduled work.";
+"mac_pair_first" = "Pair a receiver first.";
+"mac_transfer_concurrency_note" = "System Library and folders share 1–4 transfer slots. Reducing concurrency lets active tasks finish.";
+"mac_storage_cache_description" = "System Library and folders share a staging cache for temporary copies during preparation and transfer. This setting does not affect receiver storage.";
+"mac_storage_reclaim_note" = "Reclaims temporary copies after verified delivery. Originals in System Library, folders and the receiver are kept.";
+"mac_help_library" = "Select photos manually or enable automatic backup for new photos. Scan existing photos separately. System Library identifies Live Photos and accessible burst frames.";
+"mac_help_folders" = "Add local or external-drive folders, including subfolders. Automatic backup handles additions and changes; Back Up Existing Files starts a manual backup. Originals are kept unchanged. Exported Live Photos need matching pairing metadata; folder burst photos are backed up as separate files.";
+"mac_help_permissions" = "System Library needs Photos access and only processes allowed items; iCloud originals may need downloading. Selecting a folder grants read access. External drives must remain connected.";
+"mac_help_receipt" = "Received means the receiver verified the files; it does not confirm cloud backup. PhotoBridge keeps originals in System Library and folders.";
+
+"folder_auto_enabled" = "Automatic backup is on";
+"folder_manual_queued" = "This backup is scheduled";
+
+"folder_file_changed" = "The file moved or changed. Rescanning.";
+
+"mac_resume_all" = "Resume all backups";

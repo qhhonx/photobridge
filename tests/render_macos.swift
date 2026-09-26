@@ -100,9 +100,16 @@ import SwiftUI
           let bookmark = try folder.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil)
           try FileManager.default.createDirectory(at: model.root, withIntermediateDirectories: true)
           let folders = FolderSources(backup: model)
-          let source = FolderSource(id: "layout-folder", name: "Documents", bookmark: bookmark,
+          var source = FolderSource(id: "layout-folder", name: "Documents", bookmark: bookmark,
             automatic: true, enabled: true, receiver: paired.receiverID, lastCheck: Date(),
             issues: [String(repeating: "nested-folder/", count: 12) + "unreadable.jpg": "1"])
+          source.issues["root-photo.png"] = "fixture-revision"
+          source.issueDetails = ["root-photo.png": FolderIssue(reason: "unreadable_media", detail: nil)]
+          let legacyData = try JSONEncoder().encode(source)
+          var legacy = try JSONSerialization.jsonObject(with: legacyData) as! [String: Any]
+          legacy.removeValue(forKey: "issueDetails"); legacy.removeValue(forKey: "retryPaths")
+          let restored = try JSONDecoder().decode(FolderSource.self, from: JSONSerialization.data(withJSONObject: legacy))
+          precondition(restored.issues.count == 2 && restored.issueDetails == nil && restored.retryPaths == nil)
           folders.sources = [source]
           _ = try await Bridge.call(["op": "folder", "command": ["action": "begin", "source": source.id, "root": folder.path]])
           while true {
@@ -143,10 +150,31 @@ import SwiftUI
           precondition(!folders.sources[0].enabled && folders.actionMessages[source.id] == "folder_pair_first")
           model.pairing = paired
           await folders.start(source.id)
-          precondition(folders.sources[0].enabled && folders.sources[0].issues.isEmpty && !model.paused)
-          precondition(folders.actionMessages[source.id] == "folder_backup_requested" && folders.starting.isEmpty)
-          await model.setPaused(true)
-          folders.sources = [source]
+          precondition(folders.sources[0].manualActive && !folders.sources[0].issues.isEmpty && model.paused)
+          precondition(folders.actionMessages[source.id] == "folder_global_wait" && folders.starting.isEmpty)
+          var beganStart = false
+          let pendingStart = Task { beganStart = true; await folders.start(source.id) }
+          while !beganStart { await Task.yield() }
+          folders.pause(source.id)
+          await pendingStart.value
+          precondition(!folders.sources[0].enabled && folders.actionMessages[source.id] == "folder_pause_explanation",
+            "An in-flight start must not undo a later stop")
+          folders.setAutomatic(source.id, true)
+          precondition(folders.sources[0].automaticActive)
+          folders.setAutomatic(source.id, false)
+          precondition(!folders.sources[0].enabled && !folders.sources[0].automaticActive)
+          await folders.retry(source.id, relative: "root-photo.png")
+          precondition(!folders.sources[0].enabled && model.paused)
+          precondition(folders.sources[0].retryPaths == ["root-photo.png"])
+          precondition(folders.sources[0].issues.count == 2)
+          let persisted = try JSONDecoder().decode([FolderSource].self, from: Data(contentsOf: model.root.appendingPathComponent("folder-sources.json")))
+          precondition(persisted[0].retryPaths == ["root-photo.png"] && persisted[0].issueDetails?["root-photo.png"]?.reason == "unreadable_media")
+          let desktop = store.appendingPathComponent("Desktop")
+          try FileManager.default.createDirectory(at: desktop, withIntermediateDirectories: true)
+          let desktopBookmark = try desktop.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil)
+          let second = FolderSource(id: "layout-desktop", name: "Desktop", bookmark: desktopBookmark,
+            automatic: true, enabled: true, receiver: paired.receiverID, lastCheck: Date())
+          folders.sources = [source, second]
           folders.pause(source.id)
           // Persist fixture state for the workspace's normal folder-open path.
           try FileManager.default.createDirectory(at: model.root, withIntermediateDirectories: true)
@@ -188,7 +216,10 @@ import SwiftUI
           try await capture("folder-workspace", view: AnyView(MacWorkspace(model: model,
             library: PhotoLibraryModel(), initialDestination: .sources, folderSources: folders)),
             output: output, size: NSSize(width: 1080, height: 740))
-          print("Folder action feedback, pause, directory queries and system thumbnails passed; rendered both layouts and thumbnail settings.")
+          UserDefaults.standard.set("backup", forKey: "macSettingsSection")
+          try await capture("folder-settings", view: AnyView(MacPreferences(model: model, folders: folders)),
+            output: output, size: NSSize(width: 800, height: 900))
+          print("Folder mode, global pause, retry persistence, legacy decoding, directory queries and system thumbnails passed; rendered both layouts and source settings.")
           app.terminate(nil)
           return
         }

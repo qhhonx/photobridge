@@ -206,7 +206,7 @@
 // Desktop navigation and settings states
 "sidebar_manage" = "管理";
 "backup_overview_heading" = "备份概览";
-"backup_overview_description" = "跟踪原件从照片图库到接收设备的传输进展。";
+"backup_overview_description" = "跟踪系统图库和文件夹到接收设备的备份进展。";
 "backup_choose_library" = "从图库选择照片";
 "backup_initializing" = "正在载入备份…";
 "storage_loading" = "正在载入空间设置…";
@@ -415,9 +415,9 @@
 "source_system_library" = "系统图库";
 "folder_add" = "添加文件夹";
 "folder_choose" = "选择文件夹";
-"folder_open" = "文件";
-"folder_check" = "检查";
-"folder_backup_now" = "备份";
+"folder_open" = "查看文件";
+"folder_check" = "重新扫描";
+"folder_backup_now" = "备份现有文件";
 "folder_stop_preparing" = "暂停";
 "folder_remove" = "移除来源";
 "folder_remove_note" = "停止检查此文件夹。已准备的传输任务和接收端文件会保留，不删除原文件。";
@@ -435,7 +435,7 @@
 "folder_receiver_changed" = "接收设备已更换，请确认备份到当前设备";
 "folder_queue_wait" = "正在传输，稍后准备更多文件";
 "folder_up_to_date" = "已检查";
-"folder_attention" = "有文件需要检查";
+"folder_attention" = "部分文件未备份";
 "folder_preparing" = "正在准备原件…";
 "folder_cache_wait" = "等待中转缓存空间";
 "folder_offline" = "等待硬盘连接或读取权限";
@@ -443,9 +443,9 @@
 "folder_load_more" = "加载更多";
 "folder_empty" = "尚未发现支持的照片或视频。";
 "state_excluded" = "未包含在首次备份中";
-"folder_issues" = "%ld 个文件需要检查";
+"folder_issues" = "%ld 个文件未备份";
 "folder_unsupported" = "跳过 %llu 个其他格式文件";
-"folder_issue_details" = "需检查的文件";
+"folder_issue_details" = "未备份的文件";
 "folder_settling" = "等待文件复制完成…";
 "task_source_filter" = "来源";
 "task_source_all" = "所有来源";
@@ -457,7 +457,7 @@
 
 "folder_reveal" = "在访达中显示";
 
-"folder_automatic_hint" = "检测此文件夹内新增和修改的照片、视频。";
+"folder_automatic_hint" = "持续备份新增和修改的文件。关闭后停止加入新任务，已排队文件继续传输。";
 
 "folder_check_requested" = "等待检查…";
 
@@ -492,11 +492,8 @@
 "folder_list_tree" = "按文件夹";
 
 "folder_sources_empty" = "添加文件夹，备份其中的照片和视频。";
-"folder_info" = "文件夹信息";
-"folder_open_help" = "浏览此文件夹中的照片和视频。";
-"folder_check_help" = "重新扫描文件夹。启用备份时，新增和修改的文件会加入备份。";
-"folder_backup_help" = "备份现有照片和视频，并重试失败文件。已备份且未变化的文件会跳过。";
-"folder_pause_help" = "暂停加入新任务，队列中的文件继续传输。";
+"folder_backup_help" = "备份未备份的现有文件；已备份且未变化的文件会跳过。";
+"folder_pause_help" = "停止加入新任务，已排队文件继续传输。";
 "folder_sort" = "排序";
 "folder_sort_modified_desc" = "修改时间：新到旧";
 "folder_sort_modified_asc" = "修改时间：旧到新";
@@ -506,3 +503,44 @@
 "folder_sort_size_asc" = "大小：小到大";
 "folder_sort_name_asc" = "名称：A–Z";
 "folder_sort_name_desc" = "名称：Z–A";
+
+"folder_help" = "文件夹备份说明";
+"folder_automatic_guide" = "开启后，自动备份此文件夹中新增和修改的照片、视频。关闭后不再加入新任务，已排队文件继续传输。";
+"folder_manual_guide" = "“备份现有文件”处理尚未备份的文件；未变化且已备份的文件会跳过。自动备份关闭时只执行本次备份，完成后停止。";
+"folder_stop_manual" = "停止本次备份";
+"folder_auto_active" = "等待新增或修改的文件";
+"folder_manual_active" = "本次备份进行中";
+"folder_manual_idle" = "按需备份";
+"folder_global_paused" = "全局备份已暂停";
+"folder_global_wait" = "已安排；请恢复全局备份以继续。";
+"folder_issues_explanation" = "这些文件读取或准备失败，尚未加入传输。可在访达中查看原文件，修复后重试。";
+"folder_issue_invalid_media" = "无法准备为可传输的照片或视频。";
+"folder_issue_unreadable_media" = "无法读取媒体内容，可能是文件损坏或扩展名与内容不符。";
+"folder_issue_permission" = "没有读取此文件的权限。";
+"folder_issue_missing" = "文件已移动或删除，原路径不再可用。";
+"folder_issue_unknown" = "旧版本未记录原因，可重试以获取具体错误。";
+"folder_retry_requested" = "已安排文件重试";
+"folder_retry_waiting" = "等待重试";
+"mac_library_automatic_note" = "仅适用于系统图库，备份启用后新增的照片。已有照片可在下方单独备份。";
+"mac_library_existing" = "系统图库：已有照片";
+"mac_library_existing_note" = "扫描你允许访问的已有照片、视频、动图和连拍。只暂停扫描时，已排队文件继续传输。";
+"mac_folder_settings_note" = "自动备份包含子文件夹的照片和视频。各文件夹独立设置；现有文件和失败文件在“文件夹”页处理。";
+"mac_manage_folders" = "管理文件夹";
+"mac_all_sources" = "所有来源";
+"mac_global_pause" = "暂停全部备份";
+"mac_global_pause_note" = "暂停系统图库和文件夹的备份及传输。文件夹仍可扫描；恢复后继续已安排的任务。";
+"mac_pair_first" = "请先配对接收设备。";
+"mac_transfer_concurrency_note" = "系统图库和文件夹共享 1–4 个传输名额。减少并发时，已开始的任务继续完成。";
+"mac_storage_cache_description" = "系统图库和文件夹共用中转缓存。准备和传输的临时副本占用此空间，设置不影响接收设备。";
+"mac_storage_reclaim_note" = "收到接收设备的校验回执后回收临时副本。不会删除系统图库、文件夹或接收设备的原文件。";
+"mac_help_library" = "可手动选择照片，或开启新增照片的自动备份。已有图库需要单独扫描；动图和可访问的连拍帧由系统图库识别。";
+"mac_help_folders" = "在“文件夹”中添加本地或外置硬盘目录，包含子文件夹。自动备份负责新增和修改；“备份现有文件”执行手动备份。不会修改或删除原文件。导出的动图需有匹配的配对信息；文件夹中的连拍按独立文件备份。";
+"mac_help_permissions" = "系统图库需要照片访问权限，仅处理允许访问的项目；iCloud 原件可能需要下载。文件夹通过选择目录授予读取权限，外置硬盘必须保持连接。";
+"mac_help_receipt" = "“已接收”表示接收设备已校验文件，不代表云端备份已完成。PhotoBridge 不会删除系统图库或文件夹中的原件。";
+
+"folder_auto_enabled" = "自动备份已开启";
+"folder_manual_queued" = "本次备份已安排";
+
+"folder_file_changed" = "文件已移动或改变，正在重新扫描。";
+
+"mac_resume_all" = "恢复全部备份";

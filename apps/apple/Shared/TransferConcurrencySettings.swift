@@ -13,7 +13,11 @@ struct TransferConcurrencySettings: View {
     } header: {
       Text("transfer_settings")
     } footer: {
-      Text("transfer_concurrency_note")
+      #if os(macOS)
+        Text("mac_transfer_concurrency_note")
+      #else
+        Text("transfer_concurrency_note")
+      #endif
     }
   }
 }

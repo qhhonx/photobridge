@@ -5,6 +5,9 @@ enum MacSettingsSection: String { case backup, cache, diagnostics, help }
 /// The Settings window and sidebar destination expose the same categories.
 struct MacPreferences: View {
   @ObservedObject var model: BackupModel
+  @ObservedObject var folders: FolderSources = .shared
+  var showFolders: (() -> Void)? = nil
+  @Environment(\.openWindow) private var openWindow
   @AppStorage("macSettingsSection") private var section = MacSettingsSection.backup
   @State private var logs = false
   @AppStorage("macListThumbnails") private var thumbnails = true
@@ -18,9 +21,9 @@ struct MacPreferences: View {
             get: { model.autoBackup },
             set: { enabled in Task { await model.setAutoBackup(enabled) } }))
             .disabled(!model.ready || model.pairing == nil)
-          Text("auto_backup_explanation").foregroundStyle(.secondary)
+          Text("mac_library_automatic_note").foregroundStyle(.secondary)
           if model.pairing == nil {
-            Label("backup_pair_first", systemImage: "externaldrive.badge.plus")
+            Label("mac_pair_first", systemImage: "externaldrive.badge.plus")
               .foregroundStyle(.secondary)
           }
           if model.discoveryPending > 0 {
@@ -29,9 +32,31 @@ struct MacPreferences: View {
           if model.historyUnavailable {
             Text("error_history_unavailable").foregroundStyle(.orange)
           }
-        } header: { Text("backup_settings") }
+        } header: { Text("mac_nav_library") }
+        HistoricalImportSettings(model: model, title: "mac_library_existing", explanation: "mac_library_existing_note")
+        Section("mac_nav_sources") {
+          Text("mac_folder_settings_note").foregroundStyle(.secondary)
+          ForEach(folders.sources) { source in
+            Toggle(folders.displayName(source), isOn: Binding(get: { source.automaticActive },
+              set: { folders.setAutomatic(source.id, $0) }))
+              .help(folders.displayPath(source))
+          }
+          Button("mac_manage_folders") {
+            if let showFolders { showFolders() }
+            else {
+              UserDefaults.standard.set("sources", forKey: "macRequestedDestination")
+              openWindow(id: "main")
+              NotificationCenter.default.post(name: Notification.Name("PhotoBridgeShowFolders"), object: nil)
+            }
+          }
+        }
+        Section("mac_all_sources") {
+          Toggle("mac_global_pause", isOn: Binding(get: { model.paused },
+            set: { value in Task { await model.setPaused(value) } }))
+            .disabled(!model.ready || model.pairing == nil)
+          Text("mac_global_pause_note").foregroundStyle(.secondary)
+        }
         TransferConcurrencySettings(model: model)
-        HistoricalImportSettings(model: model)
         Section("list_display_settings") {
           Toggle("list_thumbnails", isOn: $thumbnails)
           Text("list_thumbnails_hint").foregroundStyle(.secondary)

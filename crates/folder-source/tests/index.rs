@@ -434,3 +434,63 @@ fn sorting_precedes_pagination_and_keeps_ties_stable() {
         .windows(2)
         .all(|pair| pair[0].relative > pair[1].relative));
 }
+
+#[test]
+fn individual_retries_preserve_other_skips_receipts_and_stability() {
+    let t = Temp::new();
+    for name in ["failed-a.jpg", "failed-b.jpg", "received.jpg"] {
+        fs::write(t.root().join(name), b"media").unwrap();
+    }
+    let mut index = t.index();
+    let now = clock();
+    scan(&mut index, "source", &t.root(), now);
+    scan(&mut index, "other", &t.root(), now);
+    let entries = index
+        .candidates("source", "receiver", now + 11000, 8)
+        .unwrap();
+    for entry in &entries {
+        if entry.relative == "received.jpg" {
+            index
+                .mark("source", &entry.relative, "receiver", &entry.revision, 42)
+                .unwrap();
+        } else {
+            index
+                .ignore("source", &entry.relative, &entry.revision)
+                .unwrap();
+        }
+    }
+    let other = index.entry("other", "failed-a.jpg").unwrap();
+    index
+        .ignore("other", &other.relative, &other.revision)
+        .unwrap();
+    index.retry_entry("source", "failed-a.jpg").unwrap();
+    let target = index
+        .candidates_for("source", "receiver", now + 11000, 8, Some("failed-a.jpg"))
+        .unwrap();
+    assert_eq!(target.len(), 1);
+    assert_eq!(target[0].relative, "failed-a.jpg");
+    assert!(index
+        .candidates_for("source", "receiver", now + 11000, 8, Some("failed-b.jpg"))
+        .unwrap()
+        .is_empty());
+    assert!(index
+        .candidates_for("other", "receiver", now + 11000, 8, Some("failed-a.jpg"))
+        .unwrap()
+        .is_empty());
+    index.retry_entry("source", "received.jpg").unwrap();
+    assert!(index
+        .candidates_for("source", "receiver", now + 11000, 8, Some("received.jpg"))
+        .unwrap()
+        .is_empty());
+    assert!(index
+        .candidates_for("source", "receiver", now + 1, 8, Some("failed-a.jpg"))
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        index
+            .candidates("source", "receiver", now + 11000, 8)
+            .unwrap()
+            .len(),
+        1
+    );
+}

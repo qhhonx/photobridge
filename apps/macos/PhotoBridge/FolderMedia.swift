@@ -3,8 +3,10 @@ import AVFoundation
 import ImageIO
 
 enum FolderMediaError: LocalizedError {
-  case unsupported
-  var errorDescription: String? { NSLocalizedString("folder_unsupported_media", comment: "") }
+  case unsupported, changed
+  var errorDescription: String? {
+    NSLocalizedString(self == .changed ? "folder_file_changed" : "folder_unsupported_media", comment: "")
+  }
 }
 
 struct FolderEntry: Decodable, Identifiable {
@@ -47,6 +49,8 @@ enum FolderMedia {
   static func prepare(root: URL, entry: FolderEntry) async throws -> Prepared {
     let url = root.appendingPathComponent(entry.relative).standardizedFileURL
     guard url.resolvingSymlinksInPath().path == url.path else { throw FolderMediaError.unsupported }
+    guard FileManager.default.fileExists(atPath: url.path) else { throw FolderMediaError.changed }
+    guard FileManager.default.isReadableFile(atPath: url.path) else { throw CocoaError(.fileReadNoPermission) }
     let isVideo = entry.media_type.hasPrefix("video/")
     let info: ImageInfo
     let videoInfo: (Date?, String?)
