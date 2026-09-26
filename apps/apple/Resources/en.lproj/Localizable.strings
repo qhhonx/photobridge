@@ -513,7 +513,7 @@
 "folder_manual_idle" = "Manual backup";
 "folder_global_paused" = "All backups paused";
 "folder_global_wait" = "Scheduled. Resume all backups to continue.";
-"folder_issues_explanation" = "These files failed during reading or preparation and have not been queued. Check the originals in Finder, fix them, then retry.";
+"folder_issues_explanation" = "These files could not be read or prepared. Reveal the original and retry after fixing it, or ignore this version while keeping the original.";
 "folder_issue_invalid_media" = "Cannot prepare this file as a photo or video.";
 "folder_issue_unreadable_media" = "Cannot read the media. The file may be damaged or have a mismatched extension.";
 "folder_issue_permission" = "No permission to read this file.";
@@ -544,3 +544,17 @@
 "folder_file_changed" = "The file moved or changed. Rescanning.";
 
 "mac_resume_all" = "Resume all backups";
+
+// Folder rules and failure recovery
+"folder_rules" = "Backup rules";
+"folder_rules_include" = "Include (allowlist)";
+"folder_rules_exclude" = "Exclude (blocklist)";
+"folder_rules_note" = "One glob pattern per line, matched against paths relative to this folder. Empty include means all supported media; exclude takes priority. Matching is case-sensitive.";
+"folder_rules_examples" = "**/*.jpg: JPEGs at any depth · Trips/**: everything under Trips\n*: one path segment · **: across folders · ?: one character · [abc] and {jpg,png} are supported. A trailing / alone does not exclude a folder; use Folder/**.";
+"folder_rules_effect" = "Save rescans the folder and filters its file list. Rules do not add unsupported formats or cancel queued transfers. Originals and received backups are unchanged.";
+"folder_rules_save" = "Save and rescan";
+"folder_rules_invalid" = "Could not save these rules:";
+"folder_ignore_version" = "Ignore this version";
+"folder_ignore_note" = "Remove this failure from the list and skip this file version, including bulk retries. A changed file becomes eligible again. The original is kept.";
+"folder_no_issues" = "No files awaiting action";
+"state_ignored" = "Ignored file version";

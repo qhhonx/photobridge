@@ -494,3 +494,97 @@ fn individual_retries_preserve_other_skips_receipts_and_stability() {
         1
     );
 }
+
+#[test]
+fn glob_rules_are_source_scoped_persistent_and_validate_before_replacing() {
+    let t = Temp::new();
+    for name in [
+        "root.jpg",
+        "upper.JPG",
+        "root.png",
+        "nested/keep.jpg",
+        "nested/drop.jpg",
+    ] {
+        fs::write(t.root().join(name), b"photo").unwrap();
+    }
+    let mut i = t.index();
+    let now = clock();
+    scan(&mut i, "a", &t.root(), now);
+    let root = i.entry("a", "root.jpg").unwrap();
+    i.mark("a", "root.jpg", "r", &root.revision, 42).unwrap();
+    scan(&mut i, "other", &t.root(), now);
+    i.set_rules(
+        "a",
+        &["**/*.{jpg,png}".into()],
+        &["nested/[d]rop.?pg".into()],
+    )
+    .unwrap();
+    assert!(i.candidates("a", "r", now + 11000, 10).unwrap().is_empty());
+    assert!(!i.eligible("a", "nested/drop.jpg", "any").unwrap());
+    scan(&mut i, "a", &t.root(), now + 12000);
+    let paths: Vec<_> = i
+        .page("a", 0, "r")
+        .unwrap()
+        .into_iter()
+        .map(|e| e.relative)
+        .collect();
+    assert_eq!(paths.len(), 3);
+    assert!(paths.contains(&"root.jpg".to_owned()));
+    assert!(paths.contains(&"nested/keep.jpg".to_owned()));
+    assert!(!paths.contains(&"upper.JPG".to_owned()));
+    assert_eq!(i.job_id("a", "root.jpg", "r").unwrap(), Some(42));
+    assert_eq!(i.page("other", 0, "r").unwrap().len(), 5);
+    assert!(i.set_rules("a", &["[".into()], &[]).is_err());
+    assert_eq!(i.page("a", 0, "r").unwrap().len(), 3);
+    assert!(i.set_rules("a", &["../*.jpg".into()], &[]).is_err());
+    drop(i);
+    let mut i = t.index();
+    scan(&mut i, "a", &t.root(), now + 24000);
+    assert_eq!(i.page("a", 0, "r").unwrap().len(), 3);
+    // * does not cross separators; ** matches zero or more folders.
+    i.set_rules("a", &["*.jpg".into()], &[]).unwrap();
+    scan(&mut i, "a", &t.root(), now + 36000);
+    assert_eq!(i.page("a", 0, "r").unwrap().len(), 1);
+    i.set_rules("a", &[], &["nested/**".into()]).unwrap();
+    scan(&mut i, "a", &t.root(), now + 48000);
+    assert_eq!(i.page("a", 0, "r").unwrap().len(), 3);
+    i.set_rules("a", &[], &[]).unwrap();
+    scan(&mut i, "a", &t.root(), now + 60000);
+    assert_eq!(i.page("a", 0, "r").unwrap().len(), 5);
+    assert_eq!(i.job_id("a", "root.jpg", "r").unwrap(), Some(42));
+}
+
+#[test]
+fn user_dismissal_survives_rescan_restart_and_bulk_retry_but_not_file_change() {
+    let t = Temp::new();
+    let path = t.root().join("root.jpg");
+    fs::write(&path, b"broken").unwrap();
+    let now = clock();
+    let mut i = t.index();
+    scan(&mut i, "a", &t.root(), now);
+    scan(&mut i, "other", &t.root(), now);
+    let entry = i.entry("a", "root.jpg").unwrap();
+    i.ignore("a", "root.jpg", &entry.revision).unwrap();
+    i.dismiss("a", "root.jpg", &entry.revision).unwrap();
+    i.retry_ignored("a").unwrap();
+    i.include_existing("a").unwrap();
+    assert!(i.candidates("a", "r", now + 11000, 10).unwrap().is_empty());
+    assert_eq!(i.pending("a", "r").unwrap(), 0);
+    assert!(!i.eligible("a", "root.jpg", &entry.revision).unwrap());
+    assert_eq!(
+        i.candidates("other", "r", now + 11000, 10).unwrap().len(),
+        1
+    );
+    drop(i);
+    let mut i = t.index();
+    scan(&mut i, "a", &t.root(), now + 12000);
+    i.retry_entry("a", "root.jpg").unwrap();
+    assert!(i.candidates("a", "r", now + 24000, 10).unwrap().is_empty());
+    assert_eq!(fs::read(&path).unwrap(), b"broken");
+    fs::write(&path, b"new repaired content").unwrap();
+    scan(&mut i, "a", &t.root(), now + 25000);
+    assert_eq!(i.candidates("a", "r", now + 36000, 10).unwrap().len(), 1);
+    i.forget("a").unwrap();
+    scan(&mut i, "a", &t.root(), now + 37000);
+    assert_eq!(i.page("a", 0, "r").unwrap().len(), 1);
+}

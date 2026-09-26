@@ -440,6 +440,7 @@ func taskSymbol(_ state: String?) -> String {
   case "waiting": "clock.arrow.circlepath"
   case "failed": "exclamationmark.circle"
   case "paused": "pause.circle"
+  case "ignored": "minus.circle"
   case "scanned": "photo.stack"
   case "preparing": "arrow.down.circle"
   case "queued": "clock"

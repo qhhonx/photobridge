@@ -46,7 +46,7 @@ enum FolderMedia {
     if date == nil, let text = try await creation?.load(.stringValue) { date = ISO8601DateFormatter().date(from: text) }
     return (date, identifier)
   }
-  static func prepare(root: URL, entry: FolderEntry) async throws -> Prepared {
+  static func prepare(root: URL, entry: FolderEntry, allows: (String) async -> Bool = { _ in true }) async throws -> Prepared {
     let url = root.appendingPathComponent(entry.relative).standardizedFileURL
     guard url.resolvingSymlinksInPath().path == url.path else { throw FolderMediaError.unsupported }
     guard FileManager.default.fileExists(atPath: url.path) else { throw FolderMediaError.changed }
@@ -68,6 +68,8 @@ enum FolderMedia {
       for ext in extensions {
         let sibling = stem.appendingPathExtension(ext)
         guard FileManager.default.fileExists(atPath: sibling.path), sibling.resolvingSymlinksInPath().path == sibling.path else { continue }
+        let relative = String(sibling.path.dropFirst(root.path.count + 1))
+        guard await allows(relative) else { continue }
         if isVideo {
           let imageInfo = try? await Task.detached(priority: .utility) { try image(sibling) }.value
           if imageInfo?.identifier == identifier {

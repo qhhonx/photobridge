@@ -64,7 +64,30 @@ fn folder_motion_uses_existing_tls_queue_and_only_reclaims_owned_snapshots() {
         json!({"op":"start_receiver","root":temp.join("receiver"),"listen":address.to_string(),"capacity":1000000}),
     );
     let receiver = pairing["receiver_id"].as_str().unwrap();
+    let validation = folder(json!({"action":"validate_rules","include":["["],"exclude":[]}));
+    assert!(validation["error"].as_str().unwrap().contains('['));
+    assert_eq!(
+        folder(json!({"action":"validate_rules","include":["**/*.jpg"],"exclude":["ignored/**"]}))
+            ["error"],
+        Value::Null
+    );
     let prepare = json!({"action":"prepare","source":"source","name":"Test drive","root":source,"relative":photo.relative,"source_id":photo.source_id,"revision":photo.revision,"receiver":receiver,"metadata":{"created_at_ms":"1600000000000"},"paired":[video.relative,video.revision]});
+    // A dismissed component must not be smuggled into a motion asset.
+    folder(
+        json!({"action":"dismiss","source":"source","relative":video.relative,"revision":video.revision}),
+    );
+    let rejected = call(json!({"op":"folder","command":prepare.clone()}));
+    assert_eq!(rejected["ok"], false);
+    assert!(ok(json!({"op":"jobs","receiver_id":receiver}))
+        .as_array()
+        .unwrap()
+        .is_empty());
+    // Reset only this synthetic source's inventory/dismissal, retaining originals.
+    folder(json!({"action":"forget","source":"source"}));
+    let mut index = Index::open(&queue.join("folders.sqlite3")).unwrap();
+    index.begin("source", &source, now - 20000).unwrap();
+    while index.step(now - 20000, 100).unwrap().scanning {}
+    drop(index);
     folder(prepare.clone());
     folder(prepare.clone());
     let jobs = ok(json!({"op":"jobs","receiver_id":receiver}));

@@ -513,7 +513,7 @@
 "folder_manual_idle" = "按需备份";
 "folder_global_paused" = "全局备份已暂停";
 "folder_global_wait" = "已安排；请恢复全局备份以继续。";
-"folder_issues_explanation" = "这些文件读取或准备失败，尚未加入传输。可在访达中查看原文件，修复后重试。";
+"folder_issues_explanation" = "这些文件读取或准备失败。可查看原文件，修复后重试，或忽略此版本；原文件会保留。";
 "folder_issue_invalid_media" = "无法准备为可传输的照片或视频。";
 "folder_issue_unreadable_media" = "无法读取媒体内容，可能是文件损坏或扩展名与内容不符。";
 "folder_issue_permission" = "没有读取此文件的权限。";
@@ -544,3 +544,17 @@
 "folder_file_changed" = "文件已移动或改变，正在重新扫描。";
 
 "mac_resume_all" = "恢复全部备份";
+
+// Folder rules and failure recovery
+"folder_rules" = "备份规则";
+"folder_rules_include" = "包含（白名单）";
+"folder_rules_exclude" = "排除（黑名单）";
+"folder_rules_note" = "每行一条 glob 规则，匹配此文件夹下的相对路径。包含留空表示所有支持的媒体；排除优先。区分大小写。";
+"folder_rules_examples" = "**/*.jpg：各层级 JPG · 旅行/**：旅行文件夹下全部文件\n* 匹配单层，** 跨层，? 匹配单字符；支持 [abc] 和 {jpg,png}。排除目录请用 目录/**，只写末尾 / 无效。";
+"folder_rules_effect" = "保存后重新扫描并筛选文件列表。规则不会增加格式支持，也不会取消已排队的传输；原文件和已接收的备份不变。";
+"folder_rules_save" = "保存并重新扫描";
+"folder_rules_invalid" = "规则未保存：";
+"folder_ignore_version" = "忽略此版本";
+"folder_ignore_note" = "移除此失败记录，后续批量备份也跳过这个版本。文件内容变化后可再次备份，原文件保留。";
+"folder_no_issues" = "没有待处理的失败文件";
+"state_ignored" = "已忽略此版本";

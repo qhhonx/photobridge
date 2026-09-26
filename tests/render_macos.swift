@@ -107,7 +107,7 @@ import SwiftUI
           source.issueDetails = ["root-photo.png": FolderIssue(reason: "unreadable_media", detail: nil)]
           let legacyData = try JSONEncoder().encode(source)
           var legacy = try JSONSerialization.jsonObject(with: legacyData) as! [String: Any]
-          legacy.removeValue(forKey: "issueDetails"); legacy.removeValue(forKey: "retryPaths")
+          legacy.removeValue(forKey: "issueDetails"); legacy.removeValue(forKey: "retryPaths"); legacy.removeValue(forKey: "includePatterns"); legacy.removeValue(forKey: "excludePatterns")
           let restored = try JSONDecoder().decode(FolderSource.self, from: JSONSerialization.data(withJSONObject: legacy))
           precondition(restored.issues.count == 2 && restored.issueDetails == nil && restored.retryPaths == nil)
           folders.sources = [source]
@@ -169,6 +169,22 @@ import SwiftUI
           precondition(folders.sources[0].issues.count == 2)
           let persisted = try JSONDecoder().decode([FolderSource].self, from: Data(contentsOf: model.root.appendingPathComponent("folder-sources.json")))
           precondition(persisted[0].retryPaths == ["root-photo.png"] && persisted[0].issueDetails?["root-photo.png"]?.reason == "unreadable_media")
+          try await folders.saveRules(source.id, include: ["**/*.png"], exclude: ["Trip/**"])
+          precondition(folders.sources[0].includePatterns == ["**/*.png"] && folders.sources[0].retryPaths?.isEmpty != false && model.paused)
+          do { try await folders.saveRules(source.id, include: ["["], exclude: []); preconditionFailure("Invalid glob must not save") }
+          catch { precondition(folders.sources[0].includePatterns == ["**/*.png"]) }
+          await folders.dismissIssue(source.id, relative: "root-photo.png")
+          precondition(folders.sources[0].issues.count == 1 && folders.sources[0].issueDetails?["root-photo.png"] == nil)
+          let savedRules = try JSONDecoder().decode([FolderSource].self, from: Data(contentsOf: model.root.appendingPathComponent("folder-sources.json")))
+          precondition(savedRules[0].excludePatterns == ["Trip/**"] && savedRules[0].issues.count == 1)
+          try await folders.saveRules(source.id, include: [], exclude: [])
+          // Reset only the synthetic dismissed record by forgetting and rebuilding its index.
+          _ = try await Bridge.call(["op": "folder", "command": ["action": "forget", "source": source.id]])
+          _ = try await Bridge.call(["op": "folder", "command": ["action": "begin", "source": source.id, "root": folder.path]])
+          while true {
+            let data = try await Bridge.call(["op": "folder", "command": ["action": "step"]])
+            if !(try JSONDecoder().decode(FolderSummary.self, from: data)).scanning { break }
+          }
           let desktop = store.appendingPathComponent("Desktop")
           try FileManager.default.createDirectory(at: desktop, withIntermediateDirectories: true)
           let desktopBookmark = try desktop.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil)

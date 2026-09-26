@@ -11,6 +11,8 @@ struct FolderSourcesPage: View {
   @State private var adding: URL?
   @State private var removing: String?
   @State private var showHelp = false
+  @State private var issuesPage = false
+  @State private var rulesSource: FolderSource?
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       if backup.paused {
@@ -23,14 +25,22 @@ struct FolderSourcesPage: View {
           .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
       }
       if let selection, let source = folders.sources.first(where: { $0.id == selection }) {
-        Button { self.selection = nil } label: { Label("sources_back", systemImage: "chevron.left") }
-        FolderSourceDetail(folders: folders, backup: backup, source: source).id(source.id)
+        Button { if issuesPage { issuesPage = false } else { self.selection = nil } } label: {
+          Label(issuesPage ? "folder_open" : "sources_back", systemImage: "chevron.left")
+        }
+        if issuesPage { FolderIssuesPage(folders: folders, backup: backup, source: source) }
+        else {
+          FolderSourceDetail(folders: folders, backup: backup, source: source,
+            openIssues: { issuesPage = true }, editRules: { rulesSource = source }).id(source.id)
+        }
       } else {
         ScrollView {
           VStack(alignment: .leading, spacing: 14) {
             ForEach(folders.sources) { source in
               FolderSourceCard(folders: folders, backup: backup, source: source,
-                open: { selection = source.id }, remove: { removing = source.id })
+                open: { selection = source.id; issuesPage = false },
+                openIssues: { selection = source.id; issuesPage = true },
+                editRules: { rulesSource = source }, remove: { removing = source.id })
             }
             if folders.sources.isEmpty {
               Text("folder_sources_empty").foregroundStyle(.secondary).padding(.vertical, 24)
@@ -48,6 +58,7 @@ struct FolderSourcesPage: View {
             .labelStyle(.titleAndIcon).disabled(!backup.ready)
         }
       }
+      .sheet(item: $rulesSource) { source in FolderRulesSheet(folders: folders, source: source) { rulesSource = nil } }
       .sheet(isPresented: $showHelp) {
         VStack(alignment: .leading, spacing: 16) {
           Text("folder_help").font(.title2)
@@ -77,6 +88,8 @@ private struct FolderSourceCard: View {
   @ObservedObject var backup: BackupModel
   let source: FolderSource
   let open: () -> Void
+  let openIssues: () -> Void
+  let editRules: () -> Void
   let remove: () -> Void
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -89,6 +102,7 @@ private struct FolderSourceCard: View {
         }
         Spacer()
         Menu {
+          Button("folder_rules", action: editRules)
           Button("folder_check") { folders.check(source.id, userInitiated: true) }
           Button("folder_reveal") { folders.reveal(source) }
           if let checked = source.lastCheck {
@@ -110,7 +124,7 @@ private struct FolderSourceCard: View {
             .font(.caption).foregroundStyle(.secondary)
         }
         if !source.issues.isEmpty {
-          Button(action: open) { Text(String(format: NSLocalizedString("folder_issues", comment: ""), source.issues.count)) }
+          Button(action: openIssues) { Text(String(format: NSLocalizedString("folder_issues", comment: ""), source.issues.count)) }
             .buttonStyle(.link).foregroundStyle(.orange)
         }
       }
@@ -186,6 +200,9 @@ private struct AddFolderSheet: View {
   var close: () -> Void
   @State private var automatic = true
   @State private var existing = true
+  @State private var include = ""
+  @State private var exclude = ""
+  @State private var adding = false
   @State private var error: String?
   var body: some View {
     VStack(alignment: .leading, spacing: 18) {
@@ -195,29 +212,38 @@ private struct AddFolderSheet: View {
       Text("folder_scan_note").foregroundStyle(.secondary)
       Toggle("folder_include_existing", isOn: $existing)
       Toggle("folder_automatic", isOn: $automatic)
+      DisclosureGroup("folder_rules") { FolderRuleFields(include: $include, exclude: $exclude) }
       Text("folder_readonly_note").font(.caption).foregroundStyle(.secondary)
       if let error { Text(error).foregroundStyle(.orange) }
       HStack {
-        Button("cancel", action: close)
+        Button("cancel", action: close).disabled(adding)
         Spacer()
         Button("folder_add") {
-          do { try folders.add(url, automatic: automatic, existing: existing); close() }
-          catch { self.error = NSLocalizedString("folder_overlap_error", comment: "") }
-        }.buttonStyle(.borderedProminent).disabled(!existing && !automatic)
+          Task {
+            adding = true
+            do { try await folders.add(url, automatic: automatic, existing: existing,
+              include: FolderRuleFields.lines(include), exclude: FolderRuleFields.lines(exclude)); close() }
+            catch let failure as Bridge.Failure where failure.code == "conflict" { self.error = NSLocalizedString("folder_overlap_error", comment: "") }
+            catch let error as FolderRuleError { self.error = NSLocalizedString("folder_rules_invalid", comment: "") + " " + error.localizedDescription }
+            catch { self.error = error.localizedDescription }
+            adding = false
+          }
+        }.buttonStyle(.borderedProminent).disabled(adding || (!existing && !automatic))
       }
-    }.padding(28).frame(width: 480)
+    }.padding(28).frame(width: 520).interactiveDismissDisabled(adding)
   }
 }
 private struct FolderSourceDetail: View {
   @ObservedObject var folders: FolderSources
   @ObservedObject var backup: BackupModel
   let source: FolderSource
+  let openIssues: () -> Void
+  let editRules: () -> Void
   @State private var entries: [FolderEntry] = []
   @State private var more = true
   @State private var loading = false
   @State private var error: String?
   @State private var visible = Set<String>()
-  @State private var showIssues = false
   @AppStorage("macFolderListLayout") private var layout = "flat"
   @AppStorage("macFolderFileSort") private var sort = FolderFileSort.modifiedNewest
   @AppStorage("macFolderTreeDescending") private var treeDescending = false
@@ -233,28 +259,13 @@ private struct FolderSourceDetail: View {
           FolderSourceStatus(folders: folders, backup: backup, source: source)
         }
         Spacer()
+        if !source.issues.isEmpty {
+          Button(action: openIssues) { Label(String(format: NSLocalizedString("folder_issues", comment: ""), source.issues.count), systemImage: "exclamationmark.triangle") }
+            .foregroundStyle(.orange).accessibilityIdentifier("folder.issues")
+        }
+        Button("folder_rules", action: editRules)
       }
       FolderSourceActions(folders: folders, backup: backup, source: source)
-      if !source.issues.isEmpty {
-        Button { showIssues.toggle() } label: {
-          Label("folder_issue_details", systemImage: showIssues ? "chevron.down" : "chevron.right")
-        }.buttonStyle(.plain).accessibilityIdentifier("folder.issues")
-        if showIssues {
-          VStack(alignment: .leading, spacing: 8) {
-            Text("folder_issues_explanation").font(.caption).foregroundStyle(.secondary)
-            ScrollView {
-              LazyVStack(alignment: .leading, spacing: 12) {
-                ForEach(source.issues.keys.sorted(), id: \.self) { path in
-                  FolderIssueRow(folders: folders, backup: backup, source: source, path: path)
-                  Divider()
-                }
-              }
-            }.frame(height: min(250, source.issues.keys.reduce(CGFloat(0)) { total, path in
-              total + (source.issueDetails?[path]?.detail == nil ? 84 : 120)
-            }))
-          }
-        }
-      }
       HStack {
         Menu {
           if layout == "folders" {
@@ -330,7 +341,6 @@ private struct FolderSourceDetail: View {
       }
       if let error { Text(error).foregroundStyle(.orange).font(.caption) }
     }
-    .onAppear { showIssues = !source.issues.isEmpty }
     .task(id: "\(source.id)|\(folders.indexRevision)|\(layout)|\(sort.rawValue)|\(treeDescending)") {
       if layout == "folders" { await tree.refresh(source: source.id, folders: folders, descending: treeDescending) }
       else { await reload() }
@@ -375,11 +385,90 @@ private struct FolderSourceDetail: View {
   }
 }
 
+private struct FolderIssuesPage: View {
+  @ObservedObject var folders: FolderSources
+  @ObservedObject var backup: BackupModel
+  let source: FolderSource
+  var body: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      Text("folder_issue_details").font(.title2)
+      Text(folders.displayPath(source)).font(.caption).foregroundStyle(.secondary)
+      Text("folder_issues_explanation").foregroundStyle(.secondary)
+      if source.issues.isEmpty { Label("folder_no_issues", systemImage: "checkmark.circle").padding(.vertical, 24) }
+      ScrollView {
+        LazyVStack(alignment: .leading, spacing: 16) {
+          ForEach(source.issues.keys.sorted(), id: \.self) { path in
+            FolderIssueRow(folders: folders, backup: backup, source: source, path: path)
+            Divider()
+          }
+        }
+      }
+    }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+  }
+}
+private struct FolderRuleFields: View {
+  @Binding var include: String
+  @Binding var exclude: String
+  static func lines(_ text: String) -> [String] {
+    text.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+  }
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text("folder_rules_note").font(.callout)
+      Text("folder_rules_include").font(.headline)
+      TextEditor(text: $include).font(.system(.body, design: .monospaced)).frame(height: 90)
+        .overlay(RoundedRectangle(cornerRadius: 4).stroke(.quaternary))
+        .accessibilityLabel("folder_rules_include")
+      Text("folder_rules_exclude").font(.headline)
+      TextEditor(text: $exclude).font(.system(.body, design: .monospaced)).frame(height: 90)
+        .overlay(RoundedRectangle(cornerRadius: 4).stroke(.quaternary))
+        .accessibilityLabel("folder_rules_exclude")
+      Text(verbatim: NSLocalizedString("folder_rules_examples", comment: "")).font(.caption).foregroundStyle(.secondary)
+    }
+  }
+}
+private struct FolderRulesSheet: View {
+  @ObservedObject var folders: FolderSources
+  let source: FolderSource
+  let close: () -> Void
+  @State private var include: String
+  @State private var exclude: String
+  @State private var saving = false
+  @State private var error: String?
+  init(folders: FolderSources, source: FolderSource, close: @escaping () -> Void) {
+    self.folders = folders; self.source = source; self.close = close
+    _include = State(initialValue: (source.includePatterns ?? []).joined(separator: "\n"))
+    _exclude = State(initialValue: (source.excludePatterns ?? []).joined(separator: "\n"))
+  }
+  var body: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("folder_rules").font(.title2)
+      Text(folders.displayName(source)).foregroundStyle(.secondary)
+      FolderRuleFields(include: $include, exclude: $exclude)
+      Text("folder_rules_effect").font(.caption).foregroundStyle(.secondary)
+      if let error { Text(error).foregroundStyle(.orange).font(.caption).textSelection(.enabled) }
+      HStack {
+        Button("cancel", action: close).disabled(saving)
+        Spacer()
+        Button("folder_rules_save") {
+          Task {
+            saving = true
+            do { try await folders.saveRules(source.id, include: FolderRuleFields.lines(include), exclude: FolderRuleFields.lines(exclude)); close() }
+            catch { self.error = NSLocalizedString("folder_rules_invalid", comment: "") + " " + error.localizedDescription }
+            saving = false
+          }
+        }.disabled(saving).keyboardShortcut(.defaultAction)
+      }
+    }.padding(24).frame(width: 500).interactiveDismissDisabled(saving)
+  }
+}
+
 private struct FolderIssueRow: View {
   @ObservedObject var folders: FolderSources
   @ObservedObject var backup: BackupModel
   let source: FolderSource
   let path: String
+  @State private var dismissing = false
   private var issue: FolderIssue? { source.issueDetails?[path] }
   private var retrying: Bool { (source.retryPaths ?? []).contains(path) }
   var body: some View {
@@ -395,9 +484,11 @@ private struct FolderIssueRow: View {
       VStack(alignment: .trailing, spacing: 8) {
         Button("folder_reveal") { folders.reveal(source, relative: path) }
         Button(retrying ? "folder_retry_waiting" : "retry_task") { Task { await folders.retry(source.id, relative: path) } }
-          .disabled(retrying || !backup.ready || backup.pairing == nil)
+          .disabled(retrying || dismissing || !backup.ready || backup.pairing == nil)
+        Button("folder_ignore_version") { Task { dismissing = true; await folders.dismissIssue(source.id, relative: path); dismissing = false } }
+          .help("folder_ignore_note").disabled(dismissing)
       }.fixedSize()
-    }.accessibilityIdentifier("folder.issue_row")
+    }.accessibilityIdentifier("folder.issue." + path)
   }
 }
 

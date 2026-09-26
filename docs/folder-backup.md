@@ -122,7 +122,7 @@ pause. Requests and failure details survive restart. Receipts, stability checks,
 capacity deferral and receiver isolation remain in effect; completed jobs are
 not duplicated. Pausing/stopping clears pending retries, and asynchronous media
 inspection rechecks current pause, source enablement and receiver before enqueue.
-Directory details retain the sidebar and the Folders return button. Sorting is
+Failed files have a separate page, entered from the count on the folder card or file-list header; they are not embedded above the normal file list. Ignore This Version removes the failure record and persists a revision-scoped user dismissal independently of automatic failure skips. Bulk retries and relaunch do not revive it; a changed revision is eligible again. Originals and queued tasks are preserved. Directory and failed-file pages retain the sidebar and return actions. Sorting is
 an intrinsic-width menu rather than a control that fills the file-list header.
 
 The menu-bar status item already exists (`MenuBarExtra` / `MacStatusMenu`). It
@@ -163,3 +163,31 @@ names; their response and UI allocations are bounded. Expanded directories refre
 after scans, preserving expansion state and loaded page depth. Whole-library
 indexing and cold thumbnail generation on multi-terabyte mechanical drives still
 need real hardware measurements; configurable views do not eliminate those costs.
+
+## Folder rules
+
+Add Folder has an optional Backup Rules disclosure; each card's More menu and
+file detail also offer Backup Rules. Each folder has its own include/exclude
+lists, one glob per line, matched against relative paths with case sensitivity.
+An empty include list accepts all supported media; matching any exclude wins.
+`*` and `?` do not cross `/`; `**` crosses directories (including zero levels),
+with character classes and brace alternatives supported. Examples:
+`**/*.{jpg,JPG,png}` includes those formats at all levels; `Trips/**` excludes
+all descendants of Trips. Leading absolute paths and `..` components are rejected.
+Patterns are compiled by the Rust globset library, not a custom matcher.
+
+Rules are applied before media inventory insertion. Excluded directories may
+still be traversed to discover eligible descendants; rules do not promise to
+eliminate enumeration costs. The file list reflects the accepted inventory,
+while failed-file history remains available separately until retried or ignored.
+Saving valid rules hides the previous inventory until a requested full scan
+rebuilds it. Invalid rules preserve the current inventory and configuration.
+Receiver receipts, source identities and initial baselines are preserved.
+Newly included files without a baseline/receipt are eligible if backup is enabled.
+Rules cannot enable unsupported formats or alter already queued transfers.
+
+Native preparation rechecks both rules and user dismissals for every resource.
+An exported Live Photo is grouped only if both photo and video are eligible;
+otherwise its allowed component is processed individually. Filtering cannot
+silently include an excluded companion. Configuration and user dismissals
+survive restart and stay isolated to their source.

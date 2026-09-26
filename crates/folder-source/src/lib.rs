@@ -1,6 +1,8 @@
 //! Bounded, metadata-only folder indexing. No PhotoKit, UI or receiver knowledge.
 //! Sources are read-only; missing files never imply remote deletion.
+mod rules;
 use photobridge_core::{digest, Error, Result};
+use rules::Rules;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
 use std::{
@@ -8,6 +10,10 @@ use std::{
     path::{Component, Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+
+pub fn validate_rules(include: &[String], exclude: &[String]) -> Result<()> {
+    Rules::compile(include, exclude).map(|_| ())
+}
 
 fn db(e: rusqlite::Error) -> Error {
     Error::Storage(e.to_string())
@@ -35,6 +41,7 @@ struct Scan {
     generation: u64,
     scopes: Vec<String>,
     current: Option<fs::ReadDir>,
+    rules: Rules,
     unsupported: u64,
     files: u64,
     bytes: u64,
@@ -53,7 +60,9 @@ impl Index {
           CREATE INDEX IF NOT EXISTS folder_candidates ON files(source,present,modified);
           CREATE TABLE IF NOT EXISTS ignored(source TEXT NOT NULL,relative TEXT NOT NULL,revision TEXT NOT NULL,until_ms INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(source,relative));
           CREATE TABLE IF NOT EXISTS submitted(source TEXT NOT NULL,identity TEXT NOT NULL,receiver TEXT NOT NULL,revision TEXT NOT NULL,job INTEGER NOT NULL,PRIMARY KEY(source,identity,receiver));
-          CREATE INDEX IF NOT EXISTS folder_job ON submitted(source,job);").map_err(db)?;
+          CREATE INDEX IF NOT EXISTS folder_job ON submitted(source,job);
+          CREATE TABLE IF NOT EXISTS source_rules(source TEXT PRIMARY KEY,include TEXT NOT NULL,exclude TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS dismissed(source TEXT NOT NULL,relative TEXT NOT NULL,revision TEXT NOT NULL,PRIMARY KEY(source,relative));").map_err(db)?;
         Ok(Self { conn, scan: None })
     }
     pub fn begin(&mut self, source: &str, root: &Path, generation: u64) -> Result<()> {
@@ -129,6 +138,7 @@ impl Index {
             generation,
             scopes,
             current: None,
+            rules: self.rules(source)?,
             unsupported: 0,
             files: 0,
             bytes: 0,
@@ -237,6 +247,9 @@ impl Index {
                 scan.unsupported += 1;
                 continue;
             };
+            if !scan.rules.allows(&relative) {
+                continue;
+            }
             let meta = entry.metadata()?;
             if meta.len() == 0 {
                 continue;
@@ -302,7 +315,7 @@ impl Index {
         limit: usize,
         relative: Option<&str>,
     ) -> Result<Vec<Entry>> {
-        let mut stmt=self.conn.prepare("SELECT relative,identity,revision,size,mime,modified FROM files f WHERE source=?1 AND present=1 AND observed<=?3 AND (?6 IS NULL OR relative=?6) AND NOT EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND (i.until_ms=0 OR i.until_ms>?5)) AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?2 OR s.receiver='@baseline') AND s.revision=f.revision) ORDER BY modified DESC,relative LIMIT ?4").map_err(db)?;
+        let mut stmt=self.conn.prepare("SELECT relative,identity,revision,size,mime,modified FROM files f WHERE source=?1 AND present=1 AND observed<=?3 AND (?6 IS NULL OR relative=?6) AND NOT EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND (i.until_ms=0 OR i.until_ms>?5)) AND NOT EXISTS(SELECT 1 FROM dismissed d WHERE d.source=f.source AND d.relative=f.relative AND d.revision=f.revision) AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?2 OR s.receiver='@baseline') AND s.revision=f.revision) ORDER BY modified DESC,relative LIMIT ?4").map_err(db)?;
         let rows = stmt
             .query_map(
                 params![
@@ -452,6 +465,12 @@ impl Index {
     }
     pub fn forget(&self, source: &str) -> Result<()> {
         self.conn
+            .execute("DELETE FROM source_rules WHERE source=?1", [source])
+            .map_err(db)?;
+        self.conn
+            .execute("DELETE FROM dismissed WHERE source=?1", [source])
+            .map_err(db)?;
+        self.conn
             .execute("DELETE FROM files WHERE source=?1", [source])
             .map_err(db)?;
         self.conn
@@ -535,7 +554,7 @@ impl Index {
         Ok(())
     }
     pub fn pending(&self, source: &str, receiver: &str) -> Result<i64> {
-        self.conn.query_row("SELECT COUNT(*) FROM files f WHERE source=?1 AND present=1 AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?2 OR s.receiver='@baseline') AND s.revision=f.revision) AND NOT EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND i.until_ms=0)",params![source,receiver],|r|r.get(0)).map_err(db)
+        self.conn.query_row("SELECT COUNT(*) FROM files f WHERE source=?1 AND present=1 AND NOT EXISTS(SELECT 1 FROM dismissed d WHERE d.source=f.source AND d.relative=f.relative AND d.revision=f.revision) AND NOT EXISTS(SELECT 1 FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?2 OR s.receiver='@baseline') AND s.revision=f.revision) AND NOT EXISTS(SELECT 1 FROM ignored i WHERE i.source=f.source AND i.relative=f.relative AND i.revision=f.revision AND i.until_ms=0)",params![source,receiver],|r|r.get(0)).map_err(db)
     }
 }
 
@@ -642,5 +661,66 @@ impl Index {
             }
         }
         Ok(None)
+    }
+}
+
+impl Index {
+    fn rules(&self, source: &str) -> Result<Rules> {
+        let row: Option<(String, String)> = self
+            .conn
+            .query_row(
+                "SELECT include,exclude FROM source_rules WHERE source=?1",
+                [source],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .map_err(db)?;
+        let (include, exclude) = row.unwrap_or_else(|| ("[]".into(), "[]".into()));
+        let parse = |value: &str| {
+            serde_json::from_str::<Vec<String>>(value).map_err(|e| Error::Storage(e.to_string()))
+        };
+        Rules::compile(&parse(&include)?, &parse(&exclude)?)
+    }
+    pub fn set_rules(
+        &mut self,
+        source: &str,
+        include: &[String],
+        exclude: &[String],
+    ) -> Result<()> {
+        Rules::compile(include, exclude)?;
+        let include = serde_json::to_string(include)?;
+        let exclude = serde_json::to_string(exclude)?;
+        let old: Option<(String, String)> = self
+            .conn
+            .query_row(
+                "SELECT include,exclude FROM source_rules WHERE source=?1",
+                [source],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .map_err(db)?;
+        if old.as_ref() == Some(&(include.clone(), exclude.clone())) {
+            return Ok(());
+        }
+        let tx = self.conn.transaction().map_err(db)?;
+        tx.execute("INSERT INTO source_rules(source,include,exclude) VALUES(?1,?2,?3) ON CONFLICT(source) DO UPDATE SET include=excluded.include,exclude=excluded.exclude", params![source,include,exclude]).map_err(db)?;
+        // Hide the previous inventory until the requested full scan applies the new rules.
+        tx.execute("UPDATE files SET present=0 WHERE source=?1", [source])
+            .map_err(db)?;
+        tx.commit().map_err(db)?;
+        if self.scan.as_ref().is_some_and(|scan| scan.source == source) {
+            self.cancel();
+        }
+        Ok(())
+    }
+    pub fn dismiss(&self, source: &str, relative: &str, revision: &str) -> Result<()> {
+        self.conn.execute("INSERT INTO dismissed(source,relative,revision) VALUES(?1,?2,?3) ON CONFLICT(source,relative) DO UPDATE SET revision=excluded.revision", params![source,relative,revision]).map_err(db)?;
+        Ok(())
+    }
+    pub fn dismissed(&self, source: &str, relative: &str, revision: &str) -> Result<bool> {
+        self.conn.query_row("SELECT EXISTS(SELECT 1 FROM dismissed WHERE source=?1 AND relative=?2 AND revision=?3)", params![source,relative,revision], |r| r.get(0)).map_err(db)
+    }
+    pub fn eligible(&self, source: &str, relative: &str, revision: &str) -> Result<bool> {
+        Ok(self.rules(source)?.allows(relative) && !self.dismissed(source, relative, revision)?)
     }
 }

@@ -11,6 +11,20 @@ pub enum Command {
         #[serde(default)]
         directories: Vec<String>,
     },
+    ValidateRules {
+        include: Vec<String>,
+        exclude: Vec<String>,
+    },
+    Rules {
+        source: String,
+        include: Vec<String>,
+        exclude: Vec<String>,
+    },
+    Dismiss {
+        source: String,
+        relative: String,
+        revision: String,
+    },
     Baseline {
         source: String,
         receiver: String,
@@ -41,6 +55,10 @@ pub enum Command {
     },
     IncludeExisting {
         source: String,
+    },
+    Eligible {
+        source: String,
+        relative: String,
     },
     Step,
     Cancel,
@@ -106,6 +124,29 @@ pub fn call(command: Command) -> Result<Value> {
     }
     let index = guard.as_mut().unwrap();
     match command {
+        Command::ValidateRules { include, exclude } => {
+            match photobridge_folder_source::validate_rules(&include, &exclude) {
+                Ok(()) => Ok(json!({"error":null})),
+                Err(Error::Invalid(message)) => Ok(json!({"error":message})),
+                Err(error) => Err(error),
+            }
+        }
+        Command::Rules {
+            source,
+            include,
+            exclude,
+        } => {
+            index.set_rules(&source, &include, &exclude)?;
+            Ok(json!({}))
+        }
+        Command::Dismiss {
+            source,
+            relative,
+            revision,
+        } => {
+            index.dismiss(&source, &relative, &revision)?;
+            Ok(json!({}))
+        }
         Command::IncludeExisting { source } => {
             index.include_existing(&source)?;
             Ok(json!({}))
@@ -137,6 +178,12 @@ pub fn call(command: Command) -> Result<Value> {
             let mut states = BTreeMap::new();
             let queue = host.sender.lock().map_err(lock)?;
             for relative in relatives {
+                if let Ok(entry) = index.entry(&source, &relative) {
+                    if index.dismissed(&source, &relative, &entry.revision)? {
+                        states.insert(relative, "ignored".to_owned());
+                        continue;
+                    }
+                }
                 if let Ok(Some(id)) = index.job_id(&source, &relative, &receiver) {
                     let state = if id == 0 {
                         "excluded".to_owned()
@@ -183,6 +230,14 @@ pub fn call(command: Command) -> Result<Value> {
                 &directories,
             )?;
             Ok(json!({}))
+        }
+        Command::Eligible { source, relative } => {
+            let entry = index.entry(&source, &relative)?;
+            Ok(json!(index.eligible(
+                &source,
+                &relative,
+                &entry.revision
+            )?))
         }
         Command::Step => Ok(serde_json::to_value(
             index.step(photobridge_folder_source::millis(SystemTime::now()), 500)?,
@@ -276,6 +331,9 @@ pub fn call(command: Command) -> Result<Value> {
             }
             for (p, r) in &originals {
                 let entry = index.entry(&source, p)?;
+                if !index.eligible(&source, p, r)? {
+                    return Err(Error::Conflict("folder file excluded".into()));
+                }
                 if entry.revision != *r
                     || !index.stable(
                         &source,

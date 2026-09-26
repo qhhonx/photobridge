@@ -4,6 +4,11 @@ import CoreServices
 import ImageIO
 import SwiftUI
 
+struct FolderRuleError: LocalizedError {
+  let detail: String
+  var errorDescription: String? { detail }
+}
+
 struct FolderIssue: Codable {
   let reason: String
   let detail: String?
@@ -21,6 +26,8 @@ struct FolderSource: Codable, Identifiable {
   // Optional additions preserve decoding of sources saved by earlier versions.
   var issueDetails: [String: FolderIssue]?
   var retryPaths: [String]?
+  var includePatterns: [String]?
+  var excludePatterns: [String]?
   var automaticActive: Bool { automatic && enabled }
   var manualActive: Bool { enabled && !automatic }
 }
@@ -52,6 +59,7 @@ struct FolderSummary: Decodable {
   private var lastTurn = 0
   private var retryTurn: [String: Int] = [:]
   private var controlRevision: [String: Int] = [:]
+  private var savingRules = Set<String>()
   private var debounce: [String: Date] = [:]
   private let backup: BackupModel
   private var file: URL { backup.root.appendingPathComponent("folder-sources.json") }
@@ -71,7 +79,12 @@ struct FolderSummary: Decodable {
       let migrated = sources.contains { $0.automatic && !$0.enabled }
       for i in sources.indices where !sources[i].enabled { sources[i].automatic = false }
       if migrated { save() }
-      for source in sources { check(source.id) }
+      for source in sources {
+        if source.includePatterns != nil || source.excludePatterns != nil {
+          _ = try await call(["action": "rules", "source": source.id, "include": source.includePatterns ?? [], "exclude": source.excludePatterns ?? []])
+        }
+        check(source.id)
+      }
       loop = Task { [weak self] in
         while !Task.isCancelled {
           await self?.tick()
@@ -84,7 +97,7 @@ struct FolderSummary: Decodable {
     do { try JSONEncoder().encode(sources).write(to: file, options: .atomic) }
     catch { self.error = error.localizedDescription }
   }
-  func add(_ url: URL, automatic: Bool, existing: Bool) throws {
+  func add(_ url: URL, automatic: Bool, existing: Bool, include: [String] = [], exclude: [String] = []) async throws {
     let path = url.resolvingSymlinksInPath().standardizedFileURL.path
     let managed = backup.root.resolvingSymlinksInPath().path
     guard !path.hasPrefix(managed + "/"), !managed.hasPrefix(path + "/"), path != managed else {
@@ -99,9 +112,11 @@ struct FolderSummary: Decodable {
         }
       }
     }
+    try await validateRules(include: include, exclude: exclude)
     let bookmark = try url.resolvingSymlinksInPath().bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil)
     let source = FolderSource(id: UUID().uuidString, name: url.lastPathComponent, bookmark: bookmark,
-      automatic: automatic, enabled: existing || automatic, receiver: backup.pairing?.receiverID, lastCheck: nil, baselinePending: !existing)
+      automatic: automatic, enabled: existing || automatic, receiver: backup.pairing?.receiverID, lastCheck: nil, baselinePending: !existing, includePatterns: include, excludePatterns: exclude)
+    _ = try await call(["action": "rules", "source": source.id, "include": include, "exclude": exclude])
     sources.append(source); check(source.id); save()
   }
   func check(_ id: String, userInitiated: Bool = false) {
@@ -186,6 +201,30 @@ struct FolderSummary: Decodable {
       sources[i].retryPaths = Array(Set((sources[i].retryPaths ?? []) + [relative])).sorted()
       check(id); save()
       actionMessages[id] = backup.paused ? "folder_global_wait" : "folder_retry_requested"
+    } catch { self.error = error.localizedDescription }
+  }
+  private func validateRules(include: [String], exclude: [String]) async throws {
+    let data = try await call(["action": "validate_rules", "include": include, "exclude": exclude])
+    let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    if let detail = result?["error"] as? String { throw FolderRuleError(detail: detail) }
+  }
+  func saveRules(_ id: String, include: [String], exclude: [String]) async throws {
+    guard sources.contains(where: { $0.id == id }), !savingRules.contains(id) else { throw Bridge.Failure(code: "conflict") }
+    savingRules.insert(id)
+    defer { savingRules.remove(id) }
+    try await validateRules(include: include, exclude: exclude)
+    controlRevision[id, default: 0] += 1
+    _ = try await call(["action": "rules", "source": id, "include": include, "exclude": exclude])
+    guard let i = sources.firstIndex(where: { $0.id == id }) else { return }
+    sources[i].includePatterns = include; sources[i].excludePatterns = exclude; sources[i].retryPaths = nil
+    if scan == id { _ = try await call(["action": "cancel"]); scan = nil }
+    check(id); save(); indexRevision += 1
+  }
+  func dismissIssue(_ id: String, relative: String) async {
+    guard let source = sources.first(where: { $0.id == id }), let revision = source.issues[relative] else { return }
+    do {
+      _ = try await call(["action": "dismiss", "source": id, "relative": relative, "revision": revision])
+      clearIssue(id, relative); save(); self.revision += 1
     } catch { self.error = error.localizedDescription }
   }
   func reveal(_ source: FolderSource, relative: String? = nil) {
@@ -275,6 +314,7 @@ struct FolderSummary: Decodable {
     guard !sources.isEmpty else { return }
     lastTurn = (lastTurn + 1) % sources.count
     let source = sources[lastTurn]
+    guard !savingRules.contains(source.id) else { return }
     var currentEntry: FolderEntry?
     var companionEntry: FolderEntry?
     do {
@@ -336,7 +376,10 @@ struct FolderSummary: Decodable {
       }
       currentEntry = entry
       phases[source.id] = "folder_preparing"
-      let prepared = try await FolderMedia.prepare(root: root, entry: entry)
+      let prepared = try await FolderMedia.prepare(root: root, entry: entry) { relative in
+        guard let data = try? await self.call(["action": "eligible", "source": source.id, "relative": relative]) else { return false }
+        return (try? JSONDecoder().decode(Bool.self, from: data)) ?? false
+      }
       var primary = entry
       if prepared.primary != entry.relative {
         primary = try JSONDecoder().decode(FolderEntry.self, from: await call(["action": "entry", "source": source.id, "relative": prepared.primary]))
