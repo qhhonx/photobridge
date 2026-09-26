@@ -45,7 +45,7 @@ targets:
           cd "$SRCROOT/../.."
           export MACOSX_DEPLOYMENT_TARGET=14.0
           ./scripts/fetch-sparkle.sh
-          cargo build --locked --release --target aarch64-apple-darwin -p photobridge-native
+          cargo build --locked --release --target aarch64-apple-darwin -p photobridge-native --features folder-source
           cp target/aarch64-apple-darwin/release/libphotobridge_native.a "$BUILT_PRODUCTS_DIR/"
 schemes:
   PhotoBridge:

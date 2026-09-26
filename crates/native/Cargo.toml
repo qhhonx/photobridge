@@ -8,7 +8,12 @@ license.workspace = true
 [lib]
 crate-type = ["lib", "staticlib", "cdylib"]
 
+[features]
+default = []
+folder-source = ["dep:photobridge-folder-source"]
+
 [dependencies]
+photobridge-folder-source = { workspace = true, optional = true }
 photobridge-core.workspace = true
 photobridge-store.workspace = true
 photobridge-sender.workspace = true

@@ -174,6 +174,14 @@ impl Sender {
             .map_err(db)?;
         self.job(job_id)
     }
+    pub fn source_job_id(
+        &self,
+        receiver: &str,
+        source: &str,
+        revision: &str,
+    ) -> Result<Option<i64>> {
+        self.conn.query_row("SELECT id FROM jobs WHERE receiver_id=?1 AND json_extract(manifest,'$.source_id')=?2 AND json_extract(manifest,'$.revision')=?3 ORDER BY id DESC LIMIT 1",params![receiver,source,revision],|r|r.get(0)).optional().map_err(db)
+    }
     pub fn job(&self, id: i64) -> Result<Job> {
         let row = self.conn.query_row("SELECT receiver_id,manifest,sources,state,generation,attempts,next_attempt_at,confirmed_bytes,error_code,native_task_id FROM jobs WHERE id=?1", [id], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,i64>(4)?,r.get::<_,u32>(5)?,r.get::<_,i64>(6)?,r.get::<_,i64>(7)?,r.get::<_,Option<String>>(8)?,r.get::<_,Option<String>>(9)?))).optional().map_err(db)?.ok_or(Error::NotFound)?;
         Ok(Job {
@@ -375,9 +383,16 @@ impl Sender {
         Ok(states)
     }
     pub fn summary(&self, receiver: &str) -> Result<serde_json::Value> {
-        let mut stmt = self.conn.prepare("SELECT state,COUNT(*),SUM(confirmed_bytes) FROM jobs WHERE receiver_id=?1 GROUP BY state").map_err(db)?;
+        self.summary_source(receiver, None)
+    }
+    pub fn summary_source(
+        &self,
+        receiver: &str,
+        source: Option<&str>,
+    ) -> Result<serde_json::Value> {
+        let mut stmt = self.conn.prepare("SELECT state,COUNT(*),SUM(confirmed_bytes) FROM jobs WHERE receiver_id=?1 AND (?2 IS NULL OR COALESCE(json_extract(manifest,'$.metadata.source_ref'),'library')=?2) GROUP BY state").map_err(db)?;
         let rows = stmt
-            .query_map([receiver], |r| {
+            .query_map(params![receiver, source], |r| {
                 Ok((
                     r.get::<_, String>(0)?,
                     r.get::<_, i64>(1)?,
@@ -396,7 +411,7 @@ impl Sender {
         }
         result["total"] = count.into();
         result["confirmed_bytes"] = bytes.into();
-        let waiting: Option<(String,i64)> = self.conn.query_row("SELECT error_code,next_attempt_at FROM jobs WHERE receiver_id=?1 AND state='waiting' ORDER BY next_attempt_at,id LIMIT 1",[receiver],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(db)?;
+        let waiting: Option<(String,i64)> = self.conn.query_row("SELECT error_code,next_attempt_at FROM jobs WHERE receiver_id=?1 AND state='waiting' AND (?2 IS NULL OR COALESCE(json_extract(manifest,'$.metadata.source_ref'),'library')=?2) ORDER BY next_attempt_at,id LIMIT 1",params![receiver,source],|r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(db)?;
         result["waiting_reason"] = waiting
             .as_ref()
             .map(|r| serde_json::json!(r.0))

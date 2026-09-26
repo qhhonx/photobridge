@@ -8,7 +8,7 @@ case "$platform" in
  *) echo 'Usage: build-ios.sh [simulator|device]' >&2; exit 1;;
 esac
 export IPHONEOS_DEPLOYMENT_TARGET=17.0
-cargo build --locked --release -p photobridge-native --target "$target"
+cargo build --locked --release -p photobridge-native --no-default-features --target "$target"
 app="build/ios/$platform/PhotoBridge.app"
 mkdir -p "$app"
 cp apps/ios/PhotoBridge/Info.plist "$app/Info.plist"

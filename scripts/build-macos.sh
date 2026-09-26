@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 export MACOSX_DEPLOYMENT_TARGET=14.0
 ./scripts/fetch-sparkle.sh
 export CARGO_ENCODED_RUSTFLAGS=$(printf '%s\037%s' "--remap-path-prefix=$PWD=/photobridge" "--remap-path-prefix=$HOME=/builder")
-cargo build --locked --release --target aarch64-apple-darwin -p photobridge-native
+cargo build --locked --release --target aarch64-apple-darwin -p photobridge-native --features folder-source
 app=build/macos/PhotoBridge.app
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$app/Contents/Frameworks"
 cp apps/macos/PhotoBridge/Info.plist "$app/Contents/Info.plist"
@@ -19,7 +19,7 @@ xcrun --sdk macosx swiftc -swift-version 5 -O -module-cache-path build/SwiftModu
  -debug-prefix-map "$PWD=/photobridge" -F build/dependencies/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
  -import-objc-header crates/native/include/photobridge.h \
  apps/apple/Shared/*.swift apps/macos/PhotoBridge/*.swift target/aarch64-apple-darwin/release/libphotobridge_native.a \
- -framework Security -framework SystemConfiguration -framework AppKit -framework SwiftUI -framework Photos -framework Vision -lsqlite3 -lz -liconv \
+ -framework Security -framework SystemConfiguration -framework AVFoundation -framework ImageIO -framework CoreServices -framework AppKit -framework SwiftUI -framework Photos -framework Vision -lsqlite3 -lz -liconv \
  -o "$app/Contents/MacOS/PhotoBridge"
 # Keep a stable local development identity across builds. This optional file is
 # ignored by Git; release/CI builds may supply the environment variable instead.

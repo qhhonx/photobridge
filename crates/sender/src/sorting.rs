@@ -25,6 +25,7 @@ pub(super) fn migrate(conn: &Connection) -> Result<()> {
     conn.execute_batch("CREATE TRIGGER IF NOT EXISTS jobs_state_time AFTER UPDATE OF state ON jobs WHEN old.state != new.state BEGIN UPDATE jobs SET state_changed_at_ms=CAST(strftime('%s','now') AS INTEGER)*1000 WHERE id=new.id; END;
         CREATE INDEX IF NOT EXISTS jobs_state_time_order ON jobs(receiver_id,state,state_changed_at_ms,id);
         CREATE INDEX IF NOT EXISTS jobs_capture_time_order ON jobs(receiver_id,state,CAST(json_extract(manifest,'$.metadata.created_at_ms') AS INTEGER),id);").map_err(db)?;
+    conn.execute_batch("CREATE INDEX IF NOT EXISTS jobs_source_filter ON jobs(receiver_id,COALESCE(json_extract(manifest,'$.metadata.source_ref'),'library'),state,id)").map_err(db)?;
     Ok(())
 }
 
@@ -32,6 +33,9 @@ impl Sender {
     /// Cursor contains both the ordering value and the ID; ties and a moving
     /// anchor do not reset pagination. Unknown dates always sort last.
     pub fn browse(&self, query: JobQuery<'_>) -> Result<Vec<Job>> {
+        self.browse_source(query, None)
+    }
+    pub fn browse_source(&self, query: JobQuery<'_>, source: Option<&str>) -> Result<Vec<Job>> {
         let JobQuery {
             after,
             after_value,
@@ -57,11 +61,11 @@ impl Sender {
         } else {
             after_value.ok_or_else(|| Error::Invalid("sort cursor".into()))?
         };
-        let sql = format!("SELECT id,{value} FROM jobs WHERE (?3 IS NULL OR receiver_id=?3) AND (?4 IS NULL OR state=?4) AND (?1=0 OR ({value},id){compare}(?5,?1)) ORDER BY {value} {direction},id {direction} LIMIT ?2");
+        let sql = format!("SELECT id,{value} FROM jobs WHERE (?3 IS NULL OR receiver_id=?3) AND (?4 IS NULL OR state=?4) AND (?6 IS NULL OR COALESCE(json_extract(manifest,'$.metadata.source_ref'),'library')=?6) AND (?1=0 OR ({value},id){compare}(?5,?1)) ORDER BY {value} {direction},id {direction} LIMIT ?2");
         let mut stmt = self.conn.prepare(&sql).map_err(db)?;
         let rows = stmt
             .query_map(
-                params![after, limit.clamp(1, 500), receiver, state, cursor],
+                params![after, limit.clamp(1, 500), receiver, state, cursor, source],
                 |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)),
             )
             .map_err(db)?

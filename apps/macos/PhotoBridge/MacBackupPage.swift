@@ -4,6 +4,7 @@ struct MacBackupPage: View {
   @ObservedObject var model: BackupModel
   var pair: () -> Void
   var library: () -> Void
+  var sources: () -> Void
   var showTransfers: (String) -> Void
 
   var body: some View {
@@ -33,6 +34,7 @@ struct MacBackupPage: View {
             HStack {
               Button("backup_all_tasks") { showTransfers("all") }
               Spacer()
+              Button("nav_sources", action: sources)
               Button("backup_choose_library", action: library)
             }
           }
@@ -57,7 +59,7 @@ struct MacBackupPage: View {
               Button("pair_receiver_desktop", action: pair).buttonStyle(.borderedProminent)
             } else if model.summary.total == 0 {
               Text("tasks_empty").foregroundStyle(.secondary)
-              Button("backup_choose_library", action: library).buttonStyle(.borderedProminent)
+              Button("nav_sources", action: sources).buttonStyle(.borderedProminent)
             } else {
               Text(String(format: NSLocalizedString("transfer_summary", comment: ""),
                 model.summary.received, model.summary.total)).foregroundStyle(.secondary)

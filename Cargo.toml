@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/core", "crates/store", "crates/sender", "crates/native", "crates/transport", "crates/pixel", "apps/cli"]
+members = ["crates/core", "crates/folder-source", "crates/store", "crates/sender", "crates/native", "crates/transport", "crates/pixel", "apps/cli"]
 resolver = "2"
 
 [workspace.package]
@@ -9,6 +9,7 @@ rust-version = "1.90"
 license = "PolyForm-Noncommercial-1.0.0"
 
 [workspace.dependencies]
+photobridge-folder-source = { path = "crates/folder-source" }
 photobridge-core = { path = "crates/core" }
 photobridge-store = { path = "crates/store" }
 photobridge-transport = { path = "crates/transport" }

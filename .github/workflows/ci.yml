@@ -22,6 +22,9 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked --no-fail-fast
+      - run: cargo clippy -p photobridge-native --features folder-source --all-targets --locked -- -D warnings
+      - run: cargo test -p photobridge-native --features folder-source --locked
+      - run: python scripts/check-folder-isolation.py
       - run: cargo build --workspace --locked
       - run: python tests/cli_smoke.py
 
@@ -37,6 +40,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - run: rustup target add aarch64-apple-darwin
       - run: scripts/build-macos.sh
+      - run: scripts/test-folder-native.sh
   android:
     runs-on: ubuntu-latest
     steps:

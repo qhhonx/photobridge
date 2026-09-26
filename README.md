@@ -26,6 +26,7 @@ licensing requests.
 
 - Native SwiftUI iOS/macOS senders with PhotoKit libraries, reusable thumbnail
   grids, new-photo backup, existing-library import and visible transfer progress.
+- Mac folder sources with recursive indexing, automatic change checks and external-drive recovery. See [folder backup](docs/folder-backup.md) for supported formats and limits.
 - A Kotlin Android receiver with gallery publication, supported motion-photo
   conversion, burst metadata and per-sender transfer history.
 - A shared Rust engine with paired HTTPS, certificate pinning, original-resource

@@ -1055,6 +1055,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "photobridge-folder-source"
+version = "0.1.0"
+dependencies = [
+ "photobridge-core",
+ "rusqlite",
+ "serde",
+]
+
+[[package]]
 name = "photobridge-native"
 version = "0.1.0"
 dependencies = [
@@ -1065,6 +1074,7 @@ dependencies = [
  "getrandom 0.4.3",
  "jni",
  "photobridge-core",
+ "photobridge-folder-source",
  "photobridge-pixel",
  "photobridge-sender",
  "photobridge-store",

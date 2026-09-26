@@ -1,6 +1,13 @@
 //! Native host boundary. JSON is an FFI wire format, not a second backup engine.
 //! All calls are thread-safe; blocking calls belong on a native worker thread.
+#[cfg(all(
+    feature = "folder-source",
+    any(target_os = "ios", target_os = "android")
+))]
+compile_error!("folder-source is a desktop-only capability");
 mod background;
+#[cfg(feature = "folder-source")]
+mod folders;
 mod maintenance;
 mod pairing;
 mod receiver_storage;
@@ -412,6 +419,10 @@ fn manifest(
 #[derive(Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 enum Command {
+    #[cfg(feature = "folder-source")]
+    Folder {
+        command: folders::Command,
+    },
     ReceiverConnectionInfo {
         root: PathBuf,
     },
@@ -587,6 +598,8 @@ enum Command {
     },
     SenderSummary {
         receiver_id: String,
+        #[serde(default)]
+        source_filter: Option<String>,
     },
     SenderStatus,
     SetTransferConcurrency {
@@ -612,6 +625,8 @@ enum Command {
         id: i64,
     },
     Jobs {
+        #[serde(default)]
+        source_filter: Option<String>,
         #[serde(default)]
         after: i64,
         receiver_id: Option<String>,
@@ -735,6 +750,8 @@ fn sender() -> Result<Arc<SenderHost>> {
 }
 fn dispatch(command: Command) -> Result<Value> {
     match command {
+        #[cfg(feature = "folder-source")]
+        Command::Folder { command } => folders::call(command),
         Command::ReceiverConnectionInfo { root } => receiver_connection_info(&root),
         Command::ReceiverTransferHold { held } => {
             let h = HOSTS.lock().map_err(lock)?;
@@ -1164,9 +1181,14 @@ fn dispatch(command: Command) -> Result<Value> {
             }
             Ok(serde_json::to_value(states)?)
         }
-        Command::SenderSummary { receiver_id } => {
-            sender()?.sender.lock().map_err(lock)?.summary(&receiver_id)
-        }
+        Command::SenderSummary {
+            receiver_id,
+            source_filter,
+        } => sender()?
+            .sender
+            .lock()
+            .map_err(lock)?
+            .summary_source(&receiver_id, source_filter.as_deref()),
         Command::SenderStatus => {
             let host = sender()?;
             let sender = host.sender.lock().map_err(lock)?;
@@ -1239,6 +1261,7 @@ fn dispatch(command: Command) -> Result<Value> {
             Ok(json!({}))
         }
         Command::Jobs {
+            source_filter,
             after,
             receiver_id,
             state,
@@ -1249,15 +1272,31 @@ fn dispatch(command: Command) -> Result<Value> {
             let host = sender()?;
             let sender = host.sender.lock().map_err(lock)?;
             let jobs = if let Some(sort) = sort {
-                sender.browse(JobQuery {
-                    after,
-                    after_value,
-                    limit: 200,
-                    receiver: receiver_id.as_deref(),
-                    state: state.as_deref(),
-                    sort: &sort,
-                    descending,
-                })?
+                sender.browse_source(
+                    JobQuery {
+                        after,
+                        after_value,
+                        limit: 200,
+                        receiver: receiver_id.as_deref(),
+                        state: state.as_deref(),
+                        sort: &sort,
+                        descending,
+                    },
+                    source_filter.as_deref(),
+                )?
+            } else if source_filter.is_some() {
+                sender.browse_source(
+                    JobQuery {
+                        after,
+                        after_value: Some(after),
+                        limit: 200,
+                        receiver: receiver_id.as_deref(),
+                        state: state.as_deref(),
+                        sort: "added",
+                        descending,
+                    },
+                    source_filter.as_deref(),
+                )?
             } else {
                 sender.list_filtered_ordered(
                     after,

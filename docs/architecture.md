@@ -153,3 +153,12 @@ context. The maintenance database adds a nullable context column, preserving old
 events and the user's retention settings. Missing context in an old event means
 unknown, not zero pending work. A short background completion or a manually
 recorded test snapshot does not prove sustained lock-screen execution.
+
+## Desktop folder-source capability
+
+The optional `photobridge-folder-source` crate produces generic assets from a
+read-only, persistent folder index. Mac owns folder authorization, filesystem
+notifications and media metadata APIs; the existing Rust sender owns snapshots,
+checksums, durable tasks and transfer. Mobile native builds never link the folder
+crate. Source identity is namespaced without changing existing PhotoKit IDs.
+See [folder backup](folder-backup.md) for behavior and validation boundaries.

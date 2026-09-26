@@ -44,12 +44,13 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
 }
 
 enum MacDestination: String, CaseIterable, Identifiable {
-  case library, backup, transfers, receiver, settings
+  case library, sources, backup, transfers, receiver, settings
   var id: String { rawValue }
   var title: String { "nav_" + rawValue }
   var icon: String {
     switch self {
     case .library: "photo.on.rectangle"
+    case .sources: "folder"
     case .backup: "checkmark.shield"
     case .transfers: "arrow.up.arrow.down"
     case .receiver: "externaldrive.badge.wifi"
@@ -65,6 +66,7 @@ struct MacWorkspace: View {
   @State private var pairSheet = false
   @State private var transferFilter = "all"
   @StateObject private var activeTransfers = TaskBrowserModel()
+  @StateObject private var folders = FolderSources.shared
   init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .library) {
     self.model = model
     self.library = library
@@ -78,7 +80,7 @@ struct MacWorkspace: View {
         ).padding(.vertical, 28)
         List(selection: $destination) {
           Section("sidebar_library") {
-            ForEach([MacDestination.library, .backup, .transfers]) { item in
+            ForEach([MacDestination.library, .sources, .backup, .transfers]) { item in
               Label(LocalizedStringKey(item.title), systemImage: item.icon).tag(item)
             }
           }
@@ -105,12 +107,15 @@ struct MacWorkspace: View {
           libraryPage.opacity(destination == .library ? 1 : 0).allowsHitTesting(
             destination == .library
           ).accessibilityHidden(destination != .library)
+          if destination == .sources {
+            FolderSourcesPage(folders: folders, backup: model, library: { destination = .library })
+          }
           if destination == .backup {
             MacBackupPage(model: model, pair: { pairSheet = true },
-              library: { destination = .library }, showTransfers: showTransfers)
+              library: { destination = .library }, sources: { destination = .sources }, showTransfers: showTransfers)
           }
           if destination == .transfers {
-            TransferList(model: model, filter: transferFilter).id(transferFilter).padding(28)
+            TransferList(model: model, filter: transferFilter, sourceOptions: [("library", NSLocalizedString("source_system_library", comment: ""))] + folders.sources.map { ($0.id, $0.name) }).id(transferFilter).padding(28)
           }
           if destination == .settings {
             MacPreferences(model: model).padding(20)
@@ -149,6 +154,10 @@ struct MacWorkspace: View {
         }
       }
     }
+    .task { await model.open(); await folders.open() }
+    .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in folders.wake() }
+    .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in folders.wake() }
+    .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)) { _ in folders.wake() }
     .sheet(isPresented: $pairSheet) { MacPairingSheet(model: model) }
   }
   private func showTransfers(_ filter: String) {

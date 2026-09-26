@@ -74,6 +74,9 @@ struct TransferRow: View {
               .lineLimit(1)
           }
         }.font(.caption).foregroundStyle(.secondary)
+        if let source = job.asset.metadata?["source_name"] {
+          Label(source, systemImage: "folder").font(.caption).foregroundStyle(.secondary)
+        }
         if let activityLabel {
           Text(NSLocalizedString(activityLabel, comment: "") + " · " + (job.stateChangedAt.map {
             Date(timeIntervalSince1970: Double($0) / 1000).formatted(date: .abbreviated, time: .standard)
@@ -113,6 +116,8 @@ struct TransferRow: View {
 struct TransferList: View {
   @ObservedObject var model: BackupModel
   @StateObject private var browser = TaskBrowserModel()
+  var sourceOptions: [(String,String)] = []
+  @State private var sourceFilter = ""
   @State private var filter: String
   @AppStorage("transferSortChoicesV2") private var savedOrders = "{}"
   private var ordering: TransferOrdering {
@@ -123,12 +128,13 @@ struct TransferList: View {
       if let data = try? JSONEncoder().encode(values) { savedOrders = String(decoding: data, as: UTF8.self) }
     }
   }
-  init(model: BackupModel, filter: String = "all") {
+  init(model: BackupModel, filter: String = "all", sourceOptions: [(String,String)] = []) {
     self.model = model
+    self.sourceOptions = sourceOptions
     _filter = State(initialValue: filter)
   }
   private var queryID: String {
-    "\(filter)|\(ordering.sort)|\(ordering.descending)|\(model.queueRevision)|\(model.pairing?.receiverID ?? "")"
+    "\(sourceFilter)|\(filter)|\(ordering.sort)|\(ordering.descending)|\(model.queueRevision)|\(model.pairing?.receiverID ?? "")"
   }
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
@@ -136,7 +142,7 @@ struct TransferList: View {
         VStack(alignment: .leading, spacing: 6) {
           Text(LocalizedStringKey(filter == "all" ? "transfer_tasks" : filter == "scanned" ? "task_title_scanned" : "state_" + filter))
             .font(.title2.weight(.medium)).accessibilityIdentifier("transfers.title")
-          Text(String(format: NSLocalizedString("task_status_count", comment: ""), model.transferCount(for: filter)))
+          Text(String(format: NSLocalizedString("task_status_count", comment: ""), (sourceFilter.isEmpty || filter == "preparing" || filter == "scanned") ? model.transferCount(for: filter) : (browser.summary?.count(for: filter) ?? 0)))
             .font(.callout).foregroundStyle(.secondary).monospacedDigit()
             .accessibilityIdentifier("transfers.count")
         }
@@ -149,6 +155,16 @@ struct TransferList: View {
         }.pickerStyle(.menu).labelsHidden().fixedSize()
           .accessibilityIdentifier("transfers.filter")
       }.frame(maxWidth: .infinity, alignment: .leading)
+      if !sourceOptions.isEmpty, filter != "preparing", filter != "scanned" {
+        HStack {
+          Text("task_source_filter").font(.callout).foregroundStyle(.secondary)
+          Spacer()
+          Picker("task_source_filter", selection: $sourceFilter) {
+            Text("task_source_all").tag("")
+            ForEach(sourceOptions, id: \.0) { Text($0.1).tag($0.0) }
+          }.labelsHidden().pickerStyle(.menu).fixedSize()
+        }
+      }
       Text(LocalizedStringKey("task_explanation_" + filter))
         .font(.callout).foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -198,8 +214,8 @@ struct TransferList: View {
   }
   private func refresh() async {
     let receiver = model.pairing?.receiverID
-    await browser.refresh(filter: filter, receiver: receiver, descending: ordering.descending, sort: ordering.sort)
-    guard !Task.isCancelled, receiver == model.pairing?.receiverID,
+    await browser.refresh(filter: filter, receiver: receiver, descending: ordering.descending, sort: ordering.sort, sourceFilter: sourceFilter.isEmpty ? nil : sourceFilter)
+    guard sourceFilter.isEmpty, !Task.isCancelled, receiver == model.pairing?.receiverID,
       !browser.failed, let summary = browser.summary else { return }
     model.summary = summary
   }
@@ -213,6 +229,7 @@ struct TransferList: View {
   @Published var failed = false
   private(set) var summary: SenderSummary?
   private var filter = "all"
+  private var sourceFilter: String?
   private var receiver: String?
   private var descending = false
   private var sort = "added"
@@ -221,15 +238,16 @@ struct TransferList: View {
   func loadMore() async {
     guard !loading else { return }
     limit += 200
-    await refresh(filter: filter, receiver: receiver, descending: descending, sort: sort)
+    await refresh(filter: filter, receiver: receiver, descending: descending, sort: sort, sourceFilter: sourceFilter)
   }
-  func refresh(filter: String, receiver: String?, descending: Bool = false, sort: String = "added") async {
-    if self.filter != filter || self.receiver != receiver || self.descending != descending || self.sort != sort {
+  func refresh(filter: String, receiver: String?, descending: Bool = false, sort: String = "added", sourceFilter: String? = nil) async {
+    if self.sourceFilter != sourceFilter || self.filter != filter || self.receiver != receiver || self.descending != descending || self.sort != sort {
       limit = 200
       jobs = []
       hasMore = false
       summary = nil
     }
+    self.sourceFilter = sourceFilter
     self.descending = descending
     self.sort = sort
     self.filter = filter
@@ -249,6 +267,7 @@ struct TransferList: View {
         if let afterValue { query["after_value"] = afterValue }
         if filter != "all" { query["state"] = filter }
         query["receiver_id"] = receiver
+        if let sourceFilter { query["source_filter"] = sourceFilter }
         let data = try await Bridge.call(query)
         let page = try JSONDecoder().decode([BackupJob].self, from: data)
         guard expected == generation, !Task.isCancelled else { return }
@@ -257,7 +276,9 @@ struct TransferList: View {
         after = last.id
         afterValue = last.sortValue
       }
-      let data = try await Bridge.call(["op": "sender_summary", "receiver_id": receiver])
+      var summaryQuery: [String: Any] = ["op": "sender_summary", "receiver_id": receiver]
+      if let sourceFilter { summaryQuery["source_filter"] = sourceFilter }
+      let data = try await Bridge.call(summaryQuery)
       let summary = try JSONDecoder().decode(SenderSummary.self, from: data)
       guard expected == generation, !Task.isCancelled else { return }
       self.summary = summary
