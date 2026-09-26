@@ -4,7 +4,6 @@ import SwiftUI
 struct FolderSourcesPage: View {
   @ObservedObject var folders: FolderSources
   @ObservedObject var backup: BackupModel
-  var library: () -> Void
   private var selection: String? {
     get { folders.selectedSourceID }
     nonmutating set { folders.selectedSourceID = newValue }
@@ -14,10 +13,6 @@ struct FolderSourcesPage: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
       HStack {
-        VStack(alignment: .leading, spacing: 6) {
-          Text("sources_heading").font(.title2.weight(.medium))
-          Text("sources_description").foregroundStyle(.secondary)
-        }
         Spacer()
         Button { choose() } label: { Label("folder_add", systemImage: "folder.badge.plus") }
           .disabled(!backup.ready)
@@ -28,20 +23,13 @@ struct FolderSourcesPage: View {
       } else {
         ScrollView {
           VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 14) {
-              Image(systemName: "photo.on.rectangle").font(.title2).foregroundStyle(.tint)
-              VStack(alignment: .leading, spacing: 5) {
-                Text("source_system_library").font(.headline)
-                Text("source_system_description").font(.callout).foregroundStyle(.secondary)
-              }
-              Spacer()
-              Button("nav_library", action: library)
-            }.padding(18).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
             ForEach(folders.sources) { source in
               FolderSourceCard(folders: folders, backup: backup, source: source,
                 open: { selection = source.id }, remove: { removing = source.id })
             }
-            Text("folder_readonly_note").font(.caption).foregroundStyle(.secondary).padding(.top, 8)
+            if folders.sources.isEmpty {
+              Text("folder_sources_empty").foregroundStyle(.secondary).padding(.vertical, 24)
+            }
           }
         }
       }
@@ -66,12 +54,13 @@ private struct FolderSourceCard: View {
   let source: FolderSource
   let open: () -> Void
   let remove: () -> Void
+  @State private var showInfo = false
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       HStack(alignment: .top, spacing: 14) {
         Image(systemName: "folder").font(.title2).foregroundStyle(.tint).frame(width: 30)
         VStack(alignment: .leading, spacing: 6) {
-          Text(String(format: NSLocalizedString("folder_source_title", comment: ""), folders.displayName(source))).font(.headline).lineLimit(1)
+          Text(folders.displayName(source)).font(.headline).lineLimit(1)
           Text(folders.displayPath(source)).font(.caption).foregroundStyle(.secondary)
             .lineLimit(1).truncationMode(.middle).help(folders.displayPath(source))
           Text(LocalizedStringKey(folders.phases[source.id] ?? "folder_scanning"))
@@ -80,21 +69,34 @@ private struct FolderSourceCard: View {
             Text(String(format: NSLocalizedString("folder_count", comment: ""), summary.files,
               ByteCountFormatter.string(fromByteCount: Int64(summary.bytes), countStyle: .file)))
               .font(.caption).foregroundStyle(.secondary)
-            if summary.unsupported > 0 {
-              Text(String(format: NSLocalizedString("folder_unsupported", comment: ""), summary.unsupported))
-                .font(.caption).foregroundStyle(.secondary)
-            }
           }
           if !source.issues.isEmpty {
             Button { open() } label: {
               Text(String(format: NSLocalizedString("folder_issues", comment: ""), source.issues.count))
             }.buttonStyle(.link).foregroundStyle(.orange)
           }
-          if let checked = source.lastCheck {
-            Text(NSLocalizedString("folder_last_check", comment: "") + " " + checked.formatted(date: .abbreviated, time: .shortened))
-              .font(.caption).foregroundStyle(.secondary)
-          }
         }.frame(maxWidth: .infinity, alignment: .leading)
+        Button { showInfo.toggle() } label: { Image(systemName: "info.circle") }
+          .buttonStyle(.plain).foregroundStyle(.secondary).help("folder_info")
+          .accessibilityLabel("folder_info")
+          .popover(isPresented: $showInfo) {
+            VStack(alignment: .leading, spacing: 12) {
+              Text("folder_info").font(.headline)
+              if let checked = source.lastCheck {
+                Text(NSLocalizedString("folder_last_check", comment: "") + " " + checked.formatted(date: .abbreviated, time: .shortened))
+              }
+              if let summary = folders.summaries[source.id], summary.unsupported > 0 {
+                Text(String(format: NSLocalizedString("folder_unsupported", comment: ""), summary.unsupported))
+              }
+              Text("folder_check").font(.headline)
+              Text("folder_check_help")
+              Text("folder_backup_now").font(.headline)
+              Text("folder_backup_help")
+              Text("folder_stop_preparing").font(.headline)
+              Text("folder_pause_help")
+              Text("folder_readonly_note").foregroundStyle(.secondary)
+            }.font(.callout).padding(18).frame(width: 320, alignment: .leading)
+          }
         Menu {
           Button("folder_reveal") {
             if let url = folders.sourceURL(source) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
@@ -108,10 +110,7 @@ private struct FolderSourceCard: View {
       FolderSourceActions(folders: folders, backup: backup, source: source, open: open)
       Divider()
       HStack(spacing: 16) {
-        VStack(alignment: .leading, spacing: 4) {
-          Text("folder_automatic").font(.callout)
-          Text("folder_automatic_hint").font(.caption).foregroundStyle(.secondary)
-        }
+        Text("folder_automatic").font(.callout).help("folder_automatic_hint")
         Spacer(minLength: 12)
         Toggle("folder_automatic", isOn: Binding(get: { source.automatic },
           set: { folders.setAutomatic(source.id, $0) }))
@@ -141,18 +140,18 @@ private struct FolderSourceActions: View {
   }
   @ViewBuilder private var buttons: some View {
     if let open {
-      Button(action: open) { Label("folder_open", systemImage: "folder") }
+      Button(action: open) { Label("folder_open", systemImage: "folder") }.help("folder_open_help")
     }
     Button { folders.check(source.id, userInitiated: true) } label: {
       Label("folder_check", systemImage: "arrow.clockwise")
-    }.disabled(!backup.ready || folders.starting.contains(source.id))
+    }.help("folder_check_help").disabled(!backup.ready || folders.starting.contains(source.id))
     Button { Task { await folders.start(source.id) } } label: {
       Label(folders.starting.contains(source.id) ? "folder_starting" : "folder_backup_now", systemImage: "arrow.up.circle")
-    }.disabled(!backup.ready || backup.pairing == nil || folders.starting.contains(source.id))
+    }.help("folder_backup_help").disabled(!backup.ready || backup.pairing == nil || folders.starting.contains(source.id))
     if source.enabled {
       Button { folders.pause(source.id) } label: {
         Label("folder_stop_preparing", systemImage: "pause.circle")
-      }.disabled(folders.starting.contains(source.id))
+      }.help("folder_pause_help").disabled(folders.starting.contains(source.id))
     }
   }
 }
@@ -195,6 +194,9 @@ private struct FolderSourceDetail: View {
   @State private var visible = Set<String>()
   @State private var showIssues = false
   @AppStorage("macFolderListLayout") private var layout = "flat"
+  @AppStorage("macFolderFileSort") private var sort = FolderFileSort.modifiedNewest
+  @AppStorage("macFolderTreeDescending") private var treeDescending = false
+  @State private var request = UUID()
   @StateObject private var tree = FolderTreeModel()
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
@@ -225,8 +227,22 @@ private struct FolderSourceDetail: View {
         }
       }
       HStack {
-        Text(layout == "folders" ? "folder_tree_note" : "folder_detail_note")
-          .font(.caption).foregroundStyle(.secondary)
+        Menu {
+          if layout == "folders" {
+            Picker("folder_sort", selection: $treeDescending) {
+              Text("folder_sort_name_asc").tag(false)
+              Text("folder_sort_name_desc").tag(true)
+            }
+          } else {
+            Picker("folder_sort", selection: $sort) {
+              ForEach(FolderFileSort.allCases) { item in Text(LocalizedStringKey(item.title)).tag(item) }
+            }
+          }
+        } label: {
+          Label(LocalizedStringKey(layout == "folders"
+            ? (treeDescending ? "folder_sort_name_desc" : "folder_sort_name_asc") : sort.title),
+            systemImage: "arrow.up.arrow.down")
+        }.help("folder_sort").accessibilityIdentifier("folder.sort")
         Spacer()
         Picker("folder_list_layout", selection: $layout) {
           Text("folder_list_flat").tag("flat")
@@ -284,8 +300,8 @@ private struct FolderSourceDetail: View {
       }
       if let error { Text(error).foregroundStyle(.orange).font(.caption) }
     }
-    .task(id: "\(source.id)|\(folders.indexRevision)|\(layout)") {
-      if layout == "folders" { await tree.refresh(source: source.id, folders: folders) }
+    .task(id: "\(source.id)|\(folders.indexRevision)|\(layout)|\(sort.rawValue)|\(treeDescending)") {
+      if layout == "folders" { await tree.refresh(source: source.id, folders: folders, descending: treeDescending) }
       else { await reload() }
     }
     .task(id: "\(folders.revision)|\(backup.queueRevision)|\(visible.sorted().joined(separator: "|"))") {
@@ -299,21 +315,44 @@ private struct FolderSourceDetail: View {
     }
   }
   private func load() async {
-    guard !loading else { return }; loading = true; defer { loading = false }
-    do { let page = try await folders.page(source.id, offset: entries.count); entries.append(contentsOf: page); more = page.count == 100 }
-    catch { self.error = error.localizedDescription }
+    guard !loading else { return }
+    let expected = request
+    loading = true
+    defer { if request == expected { loading = false } }
+    do {
+      let page = try await folders.page(source.id, offset: entries.count, sort: sort)
+      guard request == expected, !Task.isCancelled else { return }
+      entries.append(contentsOf: page); more = page.count == 100; error = nil
+    } catch { if request == expected, !Task.isCancelled { self.error = error.localizedDescription } }
   }
   private func reload() async {
-    guard !loading else { return }; loading = true; defer { loading = false }
+    let expected = UUID(); request = expected
+    let selectedSort = sort
+    let limit = max(100, entries.count)
+    entries = []; more = false; loading = true; error = nil
+    defer { if request == expected { loading = false } }
     do {
       var result: [FolderEntry] = []
-      for offset in stride(from: 0, to: max(100, entries.count), by: 100) {
-        let page = try await folders.page(source.id, offset: offset); result.append(contentsOf: page)
+      for offset in stride(from: 0, to: limit, by: 100) {
+        let page = try await folders.page(source.id, offset: offset, sort: selectedSort)
+        guard request == expected, !Task.isCancelled else { return }
+        result.append(contentsOf: page)
         if page.count < 100 { break }
       }
       entries = result; more = result.count > 0 && result.count % 100 == 0
-    } catch { self.error = error.localizedDescription }
+    } catch { if request == expected, !Task.isCancelled { self.error = error.localizedDescription } }
   }
+}
+
+enum FolderFileSort: String, CaseIterable, Identifiable {
+  case modifiedNewest = "modified_desc"
+  case modifiedOldest = "modified_asc"
+  case pathAscending = "path_asc"
+  case pathDescending = "path_desc"
+  case sizeLargest = "size_desc"
+  case sizeSmallest = "size_asc"
+  var id: String { rawValue }
+  var title: String { "folder_sort_" + rawValue }
 }
 
 struct FolderChild: Decodable, Identifiable {
@@ -339,6 +378,7 @@ struct FolderChildren: Decodable {
   @Published var loading = Set<String>()
   @Published var errors: [String: String] = [:]
   private var generation = 0
+  private var descending = false
   var rows: [Row] {
     var result: [Row] = []
     func visit(_ directory: String, depth: Int) {
@@ -364,7 +404,7 @@ struct FolderChildren: Decodable {
     let expected = generation
     defer { if generation == expected { loading.remove(directory) } }
     do {
-      let page = try await folders.children(source, directory: directory, offset: children[directory]?.count ?? 0)
+      let page = try await folders.children(source, directory: directory, offset: children[directory]?.count ?? 0, descending: descending)
       guard generation == expected, !Task.isCancelled else { return }
       children[directory, default: []].append(contentsOf: page.rows)
       if page.has_more { more.insert(directory) } else { more.remove(directory) }
@@ -372,8 +412,9 @@ struct FolderChildren: Decodable {
       if generation == expected, !Task.isCancelled { errors[directory] = error.localizedDescription }
     }
   }
-  func refresh(source: String, folders: FolderSources) async {
+  func refresh(source: String, folders: FolderSources, descending: Bool) async {
     generation += 1
+    self.descending = descending
     let expected = generation
     loading.removeAll()
     // Refresh only the root and directories that are currently expanded.

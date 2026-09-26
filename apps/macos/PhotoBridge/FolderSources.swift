@@ -101,17 +101,7 @@ struct FolderSummary: Decodable {
   }
   func displayName(_ source: FolderSource) -> String {
     guard let url = sourceURL(source) else { return source.name }
-    let systemFolders: [(FileManager.SearchPathDirectory, String)] = [
-      (.documentDirectory, "folder_system_documents"), (.desktopDirectory, "folder_system_desktop"),
-      (.downloadsDirectory, "folder_system_downloads"), (.picturesDirectory, "folder_system_pictures"),
-      (.moviesDirectory, "folder_system_movies"), (.musicDirectory, "folder_system_music")
-    ]
-    for (directory, key) in systemFolders {
-      if FileManager.default.urls(for: directory, in: .userDomainMask).first?.standardizedFileURL == url.standardizedFileURL {
-        return NSLocalizedString(key, comment: "")
-      }
-    }
-    return FileManager.default.displayName(atPath: url.path)
+    return url.lastPathComponent
   }
   func displayPath(_ source: FolderSource) -> String {
     guard let url = sourceURL(source) else { return source.name }
@@ -313,14 +303,14 @@ struct FolderSummary: Decodable {
   func states(_ id: String, relatives: [String]) async throws -> [String: String] {
     try JSONDecoder().decode([String: String].self, from: await call(["action": "states", "source": id, "receiver": backup.pairing?.receiverID ?? "", "relatives": relatives]))
   }
-  func children(_ id: String, directory: String, offset: Int) async throws -> FolderChildren {
+  func children(_ id: String, directory: String, offset: Int, descending: Bool = false) async throws -> FolderChildren {
     try JSONDecoder().decode(FolderChildren.self, from: await call(["action": "children", "source": id,
-      "directory": directory, "offset": offset, "receiver": backup.pairing?.receiverID ?? ""]))
+      "directory": directory, "offset": offset, "descending": descending, "receiver": backup.pairing?.receiverID ?? ""]))
   }
   func previewEntry(_ id: String, job: Int64, sourceID: String) async throws -> FolderEntry? {
     try JSONDecoder().decode(FolderEntry?.self, from: await call(["action": "preview_entry", "source": id, "job": job, "source_id": sourceID]))
   }
-  func page(_ id: String, offset: Int) async throws -> [FolderEntry] {
-    try JSONDecoder().decode([FolderEntry].self, from: await call(["action": "page", "source": id, "offset": offset, "receiver": backup.pairing?.receiverID ?? ""]))
+  func page(_ id: String, offset: Int, sort: FolderFileSort = .modifiedNewest) async throws -> [FolderEntry] {
+    try JSONDecoder().decode([FolderEntry].self, from: await call(["action": "page", "source": id, "offset": offset, "sort": sort.rawValue, "receiver": backup.pairing?.receiverID ?? ""]))
   }
 }

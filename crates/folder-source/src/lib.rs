@@ -387,9 +387,42 @@ pub fn revision(path: &Path) -> Result<String> {
             .as_nanos()
     ))
 }
+#[derive(Debug, Clone, Copy, Default, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PageSort {
+    #[default]
+    ModifiedDesc,
+    ModifiedAsc,
+    PathAsc,
+    PathDesc,
+    SizeDesc,
+    SizeAsc,
+}
+impl PageSort {
+    fn sql(self) -> &'static str {
+        match self {
+            Self::ModifiedDesc => "modified DESC,relative",
+            Self::ModifiedAsc => "modified ASC,relative",
+            Self::PathAsc => "relative ASC",
+            Self::PathDesc => "relative DESC",
+            Self::SizeDesc => "size DESC,relative",
+            Self::SizeAsc => "size ASC,relative",
+        }
+    }
+}
 impl Index {
     pub fn page(&self, source: &str, offset: usize, receiver: &str) -> Result<Vec<Entry>> {
-        let mut stmt=self.conn.prepare("SELECT relative,identity,revision,size,mime,modified,(SELECT job FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?3 OR s.receiver='@baseline') AND s.revision=f.revision ORDER BY s.job DESC LIMIT 1) FROM files f WHERE source=?1 AND present=1 ORDER BY modified DESC,relative LIMIT 100 OFFSET ?2").map_err(db)?;
+        self.page_sorted(source, offset, receiver, PageSort::default())
+    }
+    pub fn page_sorted(
+        &self,
+        source: &str,
+        offset: usize,
+        receiver: &str,
+        sort: PageSort,
+    ) -> Result<Vec<Entry>> {
+        let sql = format!("SELECT relative,identity,revision,size,mime,modified,(SELECT job FROM submitted s WHERE s.source=f.source AND s.identity=f.identity AND (s.receiver=?3 OR s.receiver='@baseline') AND s.revision=f.revision ORDER BY s.job DESC LIMIT 1) FROM files f WHERE source=?1 AND present=1 ORDER BY {} LIMIT 100 OFFSET ?2", sort.sql());
+        let mut stmt = self.conn.prepare(&sql).map_err(db)?;
         let rows = stmt
             .query_map(params![source, offset as i64, receiver], |r| {
                 let identity: String = r.get(1)?;
@@ -515,6 +548,16 @@ impl Index {
         offset: usize,
         receiver: &str,
     ) -> Result<Children> {
+        self.children_sorted(source, directory, offset, receiver, false)
+    }
+    pub fn children_sorted(
+        &self,
+        source: &str,
+        directory: &str,
+        offset: usize,
+        receiver: &str,
+        descending: bool,
+    ) -> Result<Children> {
         if !directory.is_empty()
             && Path::new(directory)
                 .components()
@@ -535,7 +578,8 @@ impl Index {
         } else {
             "AND relative>=?2 AND relative<?3"
         };
-        let sql = format!("WITH descendants AS (SELECT substr(relative,length(?2)+1) AS tail FROM files WHERE source=?1 AND present=1 {range}), children AS (SELECT CASE WHEN instr(tail,'/')=0 THEN tail ELSE substr(tail,1,instr(tail,'/')-1) END AS name, instr(tail,'/')>0 AS directory FROM descendants) SELECT name,MAX(directory) FROM children GROUP BY name ORDER BY MAX(directory) DESC,name COLLATE BINARY LIMIT 101 OFFSET ?4");
+        let direction = if descending { "DESC" } else { "ASC" };
+        let sql = format!("WITH descendants AS (SELECT substr(relative,length(?2)+1) AS tail FROM files WHERE source=?1 AND present=1 {range}), children AS (SELECT CASE WHEN instr(tail,'/')=0 THEN tail ELSE substr(tail,1,instr(tail,'/')-1) END AS name, instr(tail,'/')>0 AS directory FROM descendants) SELECT name,MAX(directory) FROM children GROUP BY name ORDER BY MAX(directory) DESC,name COLLATE BINARY {direction} LIMIT 101 OFFSET ?4");
         let mut statement = self.conn.prepare(&sql).map_err(db)?;
         let names = statement
             .query_map(params![source, prefix, upper, offset as i64], |r| {

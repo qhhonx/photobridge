@@ -1,6 +1,6 @@
 //! Optional desktop boundary. Source files are never owned caches.
 use super::*;
-use photobridge_folder_source::{resolve, revision, Index};
+use photobridge_folder_source::{resolve, revision, Index, PageSort};
 static INDEX: Mutex<Option<Index>> = Mutex::new(None);
 #[derive(Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
@@ -53,12 +53,16 @@ pub enum Command {
         source: String,
         offset: usize,
         receiver: String,
+        #[serde(default)]
+        sort: PageSort,
     },
     Children {
         source: String,
         directory: String,
         offset: usize,
         receiver: String,
+        #[serde(default)]
+        descending: bool,
     },
     PreviewEntry {
         source: String,
@@ -190,8 +194,9 @@ pub fn call(command: Command) -> Result<Value> {
             source,
             offset,
             receiver,
+            sort,
         } => {
-            let entries = index.page(&source, offset, &receiver)?;
+            let entries = index.page_sorted(&source, offset, &receiver, sort)?;
             let mut rows = Vec::new();
             for e in entries {
                 let mut row = serde_json::to_value(&e)?;
@@ -209,8 +214,9 @@ pub fn call(command: Command) -> Result<Value> {
             directory,
             offset,
             receiver,
+            descending,
         } => {
-            let page = index.children(&source, &directory, offset, &receiver)?;
+            let page = index.children_sorted(&source, &directory, offset, &receiver, descending)?;
             let mut value = serde_json::to_value(page)?;
             for child in value["rows"].as_array_mut().unwrap() {
                 if let Some(id) = child["entry"]["job_id"].as_i64() {

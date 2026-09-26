@@ -115,7 +115,7 @@ struct MacWorkspace: View {
             destination == .library
           ).accessibilityHidden(destination != .library)
           if destination == .sources {
-            FolderSourcesPage(folders: folders, backup: model, library: { destination = .library })
+            FolderSourcesPage(folders: folders, backup: model)
           }
           if destination == .backup {
             MacBackupPage(model: model, pair: { pairSheet = true },

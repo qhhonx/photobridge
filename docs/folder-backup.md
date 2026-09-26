@@ -5,20 +5,20 @@ there is no folder picker, watcher or folder-source Rust dependency in its build
 
 ## Use
 
-1. Open **Folder sources**, then **Add folder**. Select a folder on the Mac,
+1. Open **Folders**, then **Add folder**. Select a folder on the Mac,
    an external drive or an SD card. Subfolders are included.
 2. Choose whether to include existing files and whether to automatically back up
    new and changed files. With existing files excluded, the first completed scan
    establishes a baseline; subsequent additions and changes are eligible.
 3. The source is scanned in batches. Pair a receiver if necessary. Global pause
-   still applies; **Back up existing files** starts/resumes preparation and also
+   still applies; **Back Up** starts/resumes preparation and also
    allows an explicit backup to a newly paired receiver.
 4. Open the folder source to browse indexed files and receiver receipts. The
    transfer list is shared with the photo library, with source labels and a source
    filter. **Received** means the paired receiver verified the resources, not
    that Google Photos completed its cloud backup.
 
-**Pause this source** stops further preparation from a source, but does not cancel
+**Pause** stops further preparation from a source, but does not cancel
 already prepared transfers. Use global pause to suspend all transfers. Removing
 an origin stops scanning and keeps prepared tasks, receiver data and originals.
 
@@ -63,11 +63,14 @@ owned staging, checked against their indexed revision and identity, then hashed
 and passed to the existing Rust queue. Large assets wait when staging allowance is
 insufficient; temporary deferral lets other assets proceed. Increase the shared
 cache budget if a single asset is larger than it. Failed media inspection can be
-reviewed in the source page and retried with **Back up existing files**.
+reviewed in the source page and retried with **Back Up**.
 
 On Unix, file identity uses the inode within the registered source/volume;
 renames within the source do not alone require retransmission. Content changes
-produce new revisions. Hard links to the same file share this identity. Across
+produce new revisions. Repeating Back Up retains actual receiver submission
+records and skips unchanged files already queued or received. It removes only the
+initial exclusion baseline and retries skipped media; it does not force re-upload.
+Changing receivers permits a separate backup to the new target. Hard links to the same file share this identity. Across
 sources, semantic/photo similarity deduplication is not promised.
 
 Sources never become cache-owned paths. Existing cache reclamation removes only
@@ -93,9 +96,10 @@ establish their performance or Google Photos cloud completion.
 
 The Mac sidebar separates sources, backup tasks and management. Backup overview
 shows aggregate status; folder sources manage the folders themselves. Source
-cards display the localized system-folder name where applicable, plus the actual
-path. Custom folder names remain intact. View files, check changes, back up
-existing files and pause are visible actions. More contains Show in Finder and
+cards display original folder names and paths. System Library has its own sidebar
+entry and is not repeated on this page. Files, Check, Back Up and Pause are visible
+actions, with hover explanations. Secondary statistics and source information are
+available from the information button. More contains Show in Finder and
 Remove source. The automatic setting has its own row with the switch at the right.
 
 Manual checks immediately report that a scan is scheduled, then running or
@@ -103,7 +107,7 @@ complete. Backup starts report scheduling and surface native errors instead of
 silently ignoring them. Pausing immediately explains that queued transfers
 continue. Files needing attention expand inside a bounded area of the existing
 page; long paths cannot widen the navigation split. Entering and leaving folder
-details restores the sidebar, and the All sources button remains available.
+details restores the sidebar, and the Folders return button remains available.
 
 The menu-bar status item already exists (`MenuBarExtra` / `MacStatusMenu`). It
 shows transfer status and offers open-window, pause/resume, settings, update and
@@ -128,8 +132,11 @@ changed, removed or inaccessible originals fall back to icons; no cached staging
 file is retained merely for a preview. Symbolic links are not followed.
 
 The file-list header offers **Flat / Folders** and remembers the choice. Flat
-preserves the existing newest-modified ordering. Folders sorts immediate children
-by name, with directories first, and queries a directory only when expanded.
+defaults to newest-modified ordering and offers modification time, file size or
+relative-path sorting in both directions. Folders offers ascending or descending
+name order, with directories first, and queries a directory only when expanded.
+Each layout remembers its sorting choice. Sorting happens in the inventory query
+before pagination, so it covers all indexed files rather than only loaded rows.
 Each directory pages independently in groups of 100; root pagination includes
 folders beyond the first 100 rows. The view uses indexed relative paths rather
 than enumerating the drive again. Only folders containing supported, indexed

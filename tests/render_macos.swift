@@ -129,7 +129,7 @@ import SwiftUI
           let systemDocument = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
           var localizedSource = source
           localizedSource.bookmark = try systemDocument.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil)
-          precondition(folders.displayName(localizedSource) == NSLocalizedString("folder_system_documents", comment: ""))
+          precondition(folders.displayName(localizedSource) == systemDocument.lastPathComponent)
           folders.summaries[source.id] = try JSONDecoder().decode(FolderSummary.self,
             from: Data(#"{"files":152,"bytes":297061580,"unsupported":3925,"scanning":false}"#.utf8))
           folders.phases[source.id] = "folder_attention"
@@ -166,7 +166,7 @@ import SwiftUI
           }
           for dark in [false, true] {
             try await capture("folder-sources-" + (dark ? "dark" : "light"),
-              view: AnyView(FolderSourcesPage(folders: folders, backup: model, library: {})), output: output,
+              view: AnyView(FolderSourcesPage(folders: folders, backup: model)), output: output,
               size: NSSize(width: 800, height: 680), dark: dark)
           }
           folders.selectedSourceID = source.id
@@ -178,10 +178,10 @@ import SwiftUI
           try await capture("folder-thumbnail-disabled", view: AnyView(MacFileThumbnail(source: source,
             relative: "root-photo.png", revision: "test", size: 100)), output: output, size: NSSize(width: 140, height: 140))
           UserDefaults.standard.set(true, forKey: "macListThumbnails")
-          try await capture("folder-detail", view: AnyView(FolderSourcesPage(folders: folders, backup: model, library: {})),
+          try await capture("folder-detail", view: AnyView(FolderSourcesPage(folders: folders, backup: model)),
             output: output, size: NSSize(width: 800, height: 680))
           UserDefaults.standard.set("folders", forKey: "macFolderListLayout")
-          try await capture("folder-tree", view: AnyView(FolderSourcesPage(folders: folders, backup: model, library: {})),
+          try await capture("folder-tree", view: AnyView(FolderSourcesPage(folders: folders, backup: model)),
             output: output, size: NSSize(width: 800, height: 680))
           UserDefaults.standard.set("flat", forKey: "macFolderListLayout")
           folders.selectedSourceID = nil

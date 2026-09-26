@@ -411,45 +411,41 @@
 
 // Desktop folder sources
 "nav_sources" = "Backup sources";
-"sources_heading" = "Your photos, wherever they live";
-"sources_description" = "Back up photos and videos from your library, folders or external drives.";
-"sources_back" = "All sources";
-"source_system_library" = "System photo library";
-"source_system_description" = "Library import and automatic backup of new captures.";
+"sources_back" = "Folders";
+"source_system_library" = "System Library";
 "folder_add" = "Add folder";
 "folder_choose" = "Choose folder";
-"folder_open" = "View files";
-"folder_check" = "Check for file changes";
-"folder_backup_now" = "Back up all existing files";
-"folder_stop_preparing" = "Pause this source";
+"folder_open" = "Files";
+"folder_check" = "Check";
+"folder_backup_now" = "Back Up";
+"folder_stop_preparing" = "Pause";
 "folder_remove" = "Remove source";
 "folder_remove_note" = "Stop checking this folder. Prepared tasks and received files remain. Source files are never deleted.";
-"folder_automatic" = "Automatically back up new and changed files";
-"folder_include_existing" = "Include existing files";
-"folder_readonly_note" = "Photos and videos are read only. Originals are never changed or deleted. Backup continues with the window closed and catches up after relaunch.";
-"folder_scan_note" = "Includes subfolders. Files are indexed in batches and use your paired receiver. Global pause remains in effect.";
+"folder_automatic" = "Automatic Backup";
+"folder_include_existing" = "Back Up Existing Files";
+"folder_readonly_note" = "Original Files Stay Unchanged. Backup Continues When the Window Closes and Stops When the App Quits.";
+"folder_scan_note" = "Includes Photos and Videos in Subfolders.";
 "folder_overlap_error" = "This folder overlaps an existing source or app storage, or read access could not be granted. Choose another folder.";
 "folder_count" = "%llu files · %@";
 "folder_last_check" = "Last checked";
-"folder_scanning" = "Checking folder…";
+"folder_scanning" = "Checking…";
 "folder_scan_failed" = "Check interrupted; retrying shortly";
-"folder_paused" = "New task preparation paused";
+"folder_paused" = "Paused";
 "folder_pair_first" = "Waiting for a paired receiver";
 "folder_receiver_changed" = "Receiver changed; confirm backup to the current device";
 "folder_queue_wait" = "Transferring; more files will be prepared shortly";
-"folder_up_to_date" = "Checked; current files are queued or received";
-"folder_attention" = "Some files need attention; start backup again to retry";
+"folder_up_to_date" = "Checked";
+"folder_attention" = "Some Files Need Attention";
 "folder_preparing" = "Preparing originals…";
 "folder_cache_wait" = "Waiting for staging space";
 "folder_offline" = "Waiting for the drive or read access";
-"folder_detail_note" = "Newest file modifications first. Backup uses embedded capture dates, falling back to file modification dates. Received does not mean cloud backup is complete.";
 "folder_not_queued" = "Not queued yet";
 "folder_load_more" = "Load more";
 "folder_empty" = "No supported photos or videos found yet.";
 "state_excluded" = "Excluded from initial backup";
 "folder_issues" = "%ld files need attention";
-"folder_unsupported" = "%llu unsupported files skipped";
-"folder_issue_details" = "Files needing attention";
+"folder_unsupported" = "Skipped %llu Other Files";
+"folder_issue_details" = "Files Needing Attention";
 "folder_settling" = "Waiting for copied files to settle…";
 "task_source_filter" = "Source";
 "task_source_all" = "All sources";
@@ -463,42 +459,50 @@
 
 "folder_automatic_hint" = "Detect new and changed photos and videos in this folder.";
 
-"folder_check_requested" = "Check scheduled; waiting for a scan. Backed-up files will not be sent again.";
+"folder_check_requested" = "Waiting to Check…";
 
-"folder_check_running" = "Checking for file changes…";
+"folder_check_running" = "Checking…";
 
-"folder_check_finished" = "Check complete. New and changed files enter backup when this source is enabled.";
+"folder_check_finished" = "Check Complete";
 
-"folder_starting" = "Scheduling backup…";
+"folder_starting" = "Preparing…";
 
-"folder_backup_requested" = "Backup scheduled; checking and preparing files. Received files are skipped.";
+"folder_backup_requested" = "Backup Started";
 
-"folder_action_failed" = "The action failed. Review the error below and try again.";
+"folder_action_failed" = "Failed. Try Again.";
 
-"folder_pause_explanation" = "This source has stopped adding new tasks. Files already queued will continue to transfer.";
+"folder_pause_explanation" = "New Tasks Paused";
 
-"folder_automatic_on" = "Automatic backup enabled.";
+"folder_automatic_on" = "Automatic Backup On";
 
-"folder_automatic_off" = "Automatic checks disabled. Discovered files and queued transfers will continue.";
+"folder_automatic_off" = "Automatic Backup Off";
 
-"mac_nav_library" = "System photo library";
+"mac_nav_library" = "System Library";
 
-"mac_nav_sources" = "Folder sources";
+"mac_nav_sources" = "Folders";
 
 "mac_nav_backup" = "Backup overview";
 
 "mac_sidebar_library" = "Sources";
-"folder_system_documents" = "Documents";
-"folder_system_desktop" = "Desktop";
-"folder_system_downloads" = "Downloads";
-"folder_system_pictures" = "Pictures";
-"folder_system_movies" = "Movies";
-"folder_system_music" = "Music";
-"folder_source_title" = "Folder: %@";
 "list_display_settings" = "List appearance";
 "list_thumbnails" = "Show photo and video thumbnails";
 "list_thumbnails_hint" = "For transfer and file lists. Only visible items load previews; turn off to show file-type icons and reduce disk reads and decoding.";
 "folder_list_layout" = "File list layout";
 "folder_list_flat" = "Flat";
 "folder_list_tree" = "Folders";
-"folder_tree_note" = "Folders and files are sorted by name and loaded on expansion, with separate pages per folder. Only indexed photos and videos are included.";
+
+"folder_sources_empty" = "Add a Folder to Back Up Its Photos and Videos.";
+"folder_info" = "Folder Information";
+"folder_open_help" = "Browse Photos and Videos in This Folder.";
+"folder_check_help" = "Scan the Folder. New and Modified Files Are Queued When Backup Is Enabled.";
+"folder_backup_help" = "Back Up Existing Photos and Videos and Retry Failed Files. Unchanged Backed-Up Files Are Skipped.";
+"folder_pause_help" = "Pause New Tasks. Queued Files Continue Transferring.";
+"folder_sort" = "Sort";
+"folder_sort_modified_desc" = "Modified: Newest First";
+"folder_sort_modified_asc" = "Modified: Oldest First";
+"folder_sort_path_asc" = "Path: A–Z";
+"folder_sort_path_desc" = "Path: Z–A";
+"folder_sort_size_desc" = "Size: Largest First";
+"folder_sort_size_asc" = "Size: Smallest First";
+"folder_sort_name_asc" = "Name: A–Z";
+"folder_sort_name_desc" = "Name: Z–A";

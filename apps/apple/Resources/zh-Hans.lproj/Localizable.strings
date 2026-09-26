@@ -411,45 +411,41 @@
 
 // Desktop folder sources
 "nav_sources" = "备份来源";
-"sources_heading" = "照片可以来自任何地方";
-"sources_description" = "从系统图库、电脑文件夹或外置硬盘备份照片和视频。";
-"sources_back" = "所有来源";
-"source_system_library" = "系统照片图库";
-"source_system_description" = "现有的图库备份与新增照片自动备份。";
+"sources_back" = "文件夹";
+"source_system_library" = "系统图库";
 "folder_add" = "添加文件夹";
 "folder_choose" = "选择文件夹";
-"folder_open" = "查看文件";
-"folder_check" = "检查文件变更";
-"folder_backup_now" = "备份全部现有文件";
-"folder_stop_preparing" = "暂停此来源";
+"folder_open" = "文件";
+"folder_check" = "检查";
+"folder_backup_now" = "备份";
+"folder_stop_preparing" = "暂停";
 "folder_remove" = "移除来源";
 "folder_remove_note" = "停止检查此文件夹。已准备的传输任务和接收端文件会保留，不删除原文件。";
-"folder_automatic" = "自动备份新增及变更内容";
-"folder_include_existing" = "同时备份文件夹内的现有内容";
-"folder_readonly_note" = "仅读取照片和视频，不修改或删除原文件。关闭主窗口后可继续运行；退出应用后，下次启动会补查。";
-"folder_scan_note" = "包含子文件夹。先分批检查文件，再通过现有接收设备传输；全局暂停仍然生效。";
+"folder_automatic" = "自动备份";
+"folder_include_existing" = "备份现有文件";
+"folder_readonly_note" = "不修改原文件。关闭窗口后继续备份，退出应用后停止。";
+"folder_scan_note" = "包含子文件夹中的照片和视频。";
 "folder_overlap_error" = "此文件夹与已有来源或应用缓存重叠，或者无法获得读取权限。请选择其他文件夹。";
 "folder_count" = "%llu 个文件 · %@";
 "folder_last_check" = "最近检查";
-"folder_scanning" = "正在检查文件夹…";
+"folder_scanning" = "检查中…";
 "folder_scan_failed" = "检查未完成，稍后重试";
-"folder_paused" = "新任务准备已暂停";
+"folder_paused" = "已暂停";
 "folder_pair_first" = "等待配对接收设备";
 "folder_receiver_changed" = "接收设备已更换，请确认备份到当前设备";
 "folder_queue_wait" = "正在传输，稍后准备更多文件";
-"folder_up_to_date" = "已检查，当前内容均已加入备份";
-"folder_attention" = "部分文件需要检查，可重新备份重试";
+"folder_up_to_date" = "已检查";
+"folder_attention" = "有文件需要检查";
 "folder_preparing" = "正在准备原件…";
 "folder_cache_wait" = "等待中转缓存空间";
 "folder_offline" = "等待硬盘连接或读取权限";
-"folder_detail_note" = "按文件修改时间从新到旧显示。备份优先读取内嵌拍摄日期，缺失时使用文件修改时间；已接收不代表云端备份完成。";
 "folder_not_queued" = "尚未加入传输任务";
 "folder_load_more" = "加载更多";
 "folder_empty" = "尚未发现支持的照片或视频。";
 "state_excluded" = "未包含在首次备份中";
 "folder_issues" = "%ld 个文件需要检查";
-"folder_unsupported" = "已跳过 %llu 个非支持格式文件";
-"folder_issue_details" = "查看需检查的文件";
+"folder_unsupported" = "跳过 %llu 个其他格式文件";
+"folder_issue_details" = "需检查的文件";
 "folder_settling" = "等待文件复制完成…";
 "task_source_filter" = "来源";
 "task_source_all" = "所有来源";
@@ -463,42 +459,50 @@
 
 "folder_automatic_hint" = "检测此文件夹内新增和修改的照片、视频。";
 
-"folder_check_requested" = "已安排检查，正在等待扫描；检查不会重新传输已备份的文件。";
+"folder_check_requested" = "等待检查…";
 
-"folder_check_running" = "正在检查文件变更…";
+"folder_check_running" = "检查中…";
 
-"folder_check_finished" = "检查完成；新增或变更文件将在此来源启用时加入备份。";
+"folder_check_finished" = "检查完成";
 
-"folder_starting" = "正在安排备份…";
+"folder_starting" = "准备中…";
 
-"folder_backup_requested" = "已安排备份，正在检查和准备文件；已接收的文件会跳过。";
+"folder_backup_requested" = "已开始备份";
 
-"folder_action_failed" = "操作未完成，请查看下方错误并重试。";
+"folder_action_failed" = "操作失败，请重试";
 
-"folder_pause_explanation" = "此来源已暂停添加新任务；已加入队列的文件仍会传输。";
+"folder_pause_explanation" = "已暂停新增任务";
 
-"folder_automatic_on" = "已开启自动备份。";
+"folder_automatic_on" = "自动备份已开启";
 
-"folder_automatic_off" = "已关闭自动检查；已发现的文件和队列中的任务仍会继续。";
+"folder_automatic_off" = "自动备份已关闭";
 
-"mac_nav_library" = "系统照片图库";
+"mac_nav_library" = "系统图库";
 
-"mac_nav_sources" = "文件夹来源";
+"mac_nav_sources" = "文件夹";
 
 "mac_nav_backup" = "备份概览";
 
 "mac_sidebar_library" = "来源";
-"folder_system_documents" = "文稿";
-"folder_system_desktop" = "桌面";
-"folder_system_downloads" = "下载";
-"folder_system_pictures" = "图片";
-"folder_system_movies" = "影片";
-"folder_system_music" = "音乐";
-"folder_source_title" = "文件夹：%@";
 "list_display_settings" = "列表显示";
 "list_thumbnails" = "显示照片和视频缩略图";
 "list_thumbnails_hint" = "用于传输列表和文件列表。仅加载可见项；关闭后显示文件类型图标，减少磁盘读取和解码。";
 "folder_list_layout" = "文件列表显示方式";
 "folder_list_flat" = "平铺";
 "folder_list_tree" = "按文件夹";
-"folder_tree_note" = "按名称显示文件夹及文件。展开时加载，每个文件夹分别分页；仅包含已索引的照片和视频。";
+
+"folder_sources_empty" = "添加文件夹，备份其中的照片和视频。";
+"folder_info" = "文件夹信息";
+"folder_open_help" = "浏览此文件夹中的照片和视频。";
+"folder_check_help" = "重新扫描文件夹。启用备份时，新增和修改的文件会加入备份。";
+"folder_backup_help" = "备份现有照片和视频，并重试失败文件。已备份且未变化的文件会跳过。";
+"folder_pause_help" = "暂停加入新任务，队列中的文件继续传输。";
+"folder_sort" = "排序";
+"folder_sort_modified_desc" = "修改时间：新到旧";
+"folder_sort_modified_asc" = "修改时间：旧到新";
+"folder_sort_path_asc" = "路径：A–Z";
+"folder_sort_path_desc" = "路径：Z–A";
+"folder_sort_size_desc" = "大小：大到小";
+"folder_sort_size_asc" = "大小：小到大";
+"folder_sort_name_asc" = "名称：A–Z";
+"folder_sort_name_desc" = "名称：Z–A";

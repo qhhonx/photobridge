@@ -358,3 +358,79 @@ fn root_folder_pagination_includes_directories_after_the_first_page() {
         .chain(&last.rows)
         .all(|row| row.is_directory));
 }
+
+#[test]
+fn sorting_precedes_pagination_and_keeps_ties_stable() {
+    let t = Temp::new();
+    let now = clock();
+    for n in 0..205 {
+        let path = t.root().join(format!("image-{n:03}.jpg"));
+        fs::write(&path, vec![0; 1 + (n * 37) % 19]).unwrap();
+        fs::File::options()
+            .write(true)
+            .open(path)
+            .unwrap()
+            .set_modified(
+                UNIX_EPOCH + std::time::Duration::from_secs((1000 + (n * 17) % 13) as u64),
+            )
+            .unwrap();
+    }
+    let mut index = t.index();
+    scan(&mut index, "source", &t.root(), now);
+    scan(&mut index, "other", &t.root(), now);
+    let original: Vec<_> = (0..3)
+        .flat_map(|n| index.page("source", n * 100, "receiver").unwrap())
+        .collect();
+    assert_eq!(original.len(), 205);
+    for sort in [
+        PageSort::ModifiedDesc,
+        PageSort::ModifiedAsc,
+        PageSort::PathAsc,
+        PageSort::PathDesc,
+        PageSort::SizeDesc,
+        PageSort::SizeAsc,
+    ] {
+        let mut expected: Vec<_> = original.iter().collect();
+        expected.sort_by(|a, b| match sort {
+            PageSort::ModifiedDesc => b
+                .modified_ms
+                .cmp(&a.modified_ms)
+                .then(a.relative.cmp(&b.relative)),
+            PageSort::ModifiedAsc => a
+                .modified_ms
+                .cmp(&b.modified_ms)
+                .then(a.relative.cmp(&b.relative)),
+            PageSort::PathAsc => a.relative.cmp(&b.relative),
+            PageSort::PathDesc => b.relative.cmp(&a.relative),
+            PageSort::SizeDesc => b.size.cmp(&a.size).then(a.relative.cmp(&b.relative)),
+            PageSort::SizeAsc => a.size.cmp(&b.size).then(a.relative.cmp(&b.relative)),
+        });
+        let actual: Vec<_> = (0..3)
+            .flat_map(|n| {
+                index
+                    .page_sorted("source", n * 100, "receiver", sort)
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(
+            actual.iter().map(|e| &e.relative).collect::<Vec<_>>(),
+            expected.iter().map(|e| &e.relative).collect::<Vec<_>>()
+        );
+        assert!(index
+            .page_sorted("source", 300, "receiver", sort)
+            .unwrap()
+            .is_empty());
+    }
+    let descending: Vec<_> = (0..3)
+        .flat_map(|n| {
+            index
+                .children_sorted("source", "", n * 100, "receiver", true)
+                .unwrap()
+                .rows
+        })
+        .collect();
+    assert_eq!(descending.len(), 205);
+    assert!(descending
+        .windows(2)
+        .all(|pair| pair[0].relative > pair[1].relative));
+}

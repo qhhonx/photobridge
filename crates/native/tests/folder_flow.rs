@@ -118,6 +118,35 @@ fn folder_motion_uses_existing_tls_queue_and_only_reclaims_owned_snapshots() {
             .unwrap()
             .all(|e| fs::read_dir(e.unwrap().path()).unwrap().next().is_none()));
     }
+    // Repeating the UI's explicit backup action must preserve received receipts.
+    for _ in 0..2 {
+        folder(json!({"action":"include_existing","source":"source"}));
+        folder(json!({"action":"retry_ignored","source":"source"}));
+        assert!(
+            folder(json!({"action":"candidates","source":"source","receiver":receiver}))
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+    }
+    let sorted = folder(
+        json!({"action":"page","source":"source","receiver":receiver,"offset":0,"sort":"path_desc"}),
+    );
+    assert_eq!(sorted[0]["relative"], "original.mov");
+    assert_eq!(sorted[1]["relative"], "original.jpg");
+    assert!(sorted
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|e| e["state"] == "received"));
+    let reverse_children = folder(
+        json!({"action":"children","source":"source","directory":"","receiver":receiver,"offset":0,"descending":true}),
+    );
+    assert_eq!(reverse_children["rows"][0]["relative"], "original.mov");
+    let invalid_sort = call(
+        json!({"op":"folder","command":{"action":"page","source":"source","receiver":receiver,"offset":0,"sort":"bad_sort"}}),
+    );
+    assert_eq!(invalid_sort["ok"], false);
     let children = folder(
         json!({"action":"children","source":"source","directory":"","receiver":receiver,"offset":0}),
     );
