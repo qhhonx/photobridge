@@ -46,7 +46,7 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
 enum MacDestination: String, CaseIterable, Identifiable {
   case library, sources, backup, transfers, receiver, settings
   var id: String { rawValue }
-  var title: String { "nav_" + rawValue }
+  var title: String { ["library", "sources", "backup"].contains(rawValue) ? "mac_nav_" + rawValue : "nav_" + rawValue }
   var icon: String {
     switch self {
     case .library: "photo.on.rectangle"
@@ -62,25 +62,32 @@ struct MacWorkspace: View {
   @ObservedObject var model: BackupModel
   @ObservedObject var library: PhotoLibraryModel
   @State private var destination: MacDestination? = .library
+  @State private var columnVisibility: NavigationSplitViewVisibility = .all
   @State private var tileSize: Double = 170
   @State private var pairSheet = false
   @State private var transferFilter = "all"
   @StateObject private var activeTransfers = TaskBrowserModel()
-  @StateObject private var folders = FolderSources.shared
-  init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .library) {
+  @StateObject private var folders: FolderSources
+  init(model: BackupModel, library: PhotoLibraryModel, initialDestination: MacDestination = .library, folderSources: FolderSources? = nil) {
     self.model = model
     self.library = library
     _destination = State(initialValue: initialDestination)
+    _folders = StateObject(wrappedValue: folderSources ?? .shared)
   }
   var body: some View {
-    NavigationSplitView {
+    NavigationSplitView(columnVisibility: $columnVisibility) {
       VStack(alignment: .leading, spacing: 0) {
         Label("PhotoBridge", systemImage: "photo.stack").font(.title3.weight(.medium)).padding(
           .horizontal, 20
         ).padding(.vertical, 28)
         List(selection: $destination) {
-          Section("sidebar_library") {
-            ForEach([MacDestination.library, .sources, .backup, .transfers]) { item in
+          Section("mac_sidebar_library") {
+            ForEach([MacDestination.library, .sources]) { item in
+              Label(LocalizedStringKey(item.title), systemImage: item.icon).tag(item)
+            }
+          }
+          Section("sidebar_tasks") {
+            ForEach([MacDestination.backup, .transfers]) { item in
               Label(LocalizedStringKey(item.title), systemImage: item.icon).tag(item)
             }
           }
@@ -89,7 +96,7 @@ struct MacWorkspace: View {
               Label(LocalizedStringKey(item.title), systemImage: item.icon).tag(item)
             }
           }
-        }.listStyle(.sidebar)
+        }.listStyle(.sidebar).font(.body.weight(.medium))
         VStack(alignment: .leading, spacing: 8) {
           Label(
             model.pairing == nil
@@ -98,7 +105,7 @@ struct MacWorkspace: View {
           Text(model.peerDevice?.name ?? NSLocalizedString(model.pairing == nil ? "receiver_unpaired" : "receiver_paired", comment: "")).font(.caption)
             .foregroundStyle(.secondary)
         }.font(.callout).padding(20)
-      }.navigationSplitViewColumnWidth(min: 195, ideal: 220, max: 270)
+      }.navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 300)
     } detail: {
       VStack(spacing: 0) {
         // Keep the native collection alive when switching destinations. No loss
@@ -115,7 +122,7 @@ struct MacWorkspace: View {
               library: { destination = .library }, sources: { destination = .sources }, showTransfers: showTransfers)
           }
           if destination == .transfers {
-            TransferList(model: model, filter: transferFilter, sourceOptions: [("library", NSLocalizedString("source_system_library", comment: ""))] + folders.sources.map { ($0.id, $0.name) }).id(transferFilter).padding(28)
+            TransferList(model: model, filter: transferFilter, sourceOptions: [("library", NSLocalizedString("source_system_library", comment: ""))] + folders.sources.map { ($0.id, folders.displayName($0)) }).id(transferFilter).padding(28)
           }
           if destination == .settings {
             MacPreferences(model: model).padding(20)
@@ -154,6 +161,8 @@ struct MacWorkspace: View {
         }
       }
     }
+    .navigationSplitViewStyle(.balanced)
+    .onChange(of: folders.selectedSourceID) { _, _ in columnVisibility = .all }
     .task { await model.open(); await folders.open() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in folders.wake() }
     .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in folders.wake() }

@@ -38,42 +38,8 @@ struct FolderSourcesPage: View {
               Button("nav_library", action: library)
             }.padding(18).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
             ForEach(folders.sources) { source in
-              VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 14) {
-                  Image(systemName: "externaldrive").font(.title2).foregroundStyle(.tint)
-                  VStack(alignment: .leading, spacing: 5) {
-                    Button(source.name) { selection = source.id }.buttonStyle(.plain).font(.headline)
-                    Text(LocalizedStringKey(folders.phases[source.id] ?? "folder_scanning"))
-                      .font(.callout).foregroundStyle(.secondary)
-                    if let summary = folders.summaries[source.id] {
-                      Text(String(format: NSLocalizedString("folder_count", comment: ""), summary.files,
-                        ByteCountFormatter.string(fromByteCount: Int64(summary.bytes), countStyle: .file)))
-                        .font(.caption).foregroundStyle(.secondary)
-                    }
-                    if !source.issues.isEmpty {
-                      Text(String(format: NSLocalizedString("folder_issues", comment: ""), source.issues.count)).font(.caption).foregroundStyle(.orange)
-                    }
-                    if let count = folders.summaries[source.id]?.unsupported, count > 0 {
-                      Text(String(format: NSLocalizedString("folder_unsupported", comment: ""), count)).font(.caption).foregroundStyle(.secondary)
-                    }
-                    if let checked = source.lastCheck {
-                      Text(NSLocalizedString("folder_last_check", comment: "") + " " + checked.formatted(date: .abbreviated, time: .shortened))
-                        .font(.caption).foregroundStyle(.secondary)
-                    }
-                  }
-                  Spacer()
-                  Menu {
-                    Button("folder_open") { selection = source.id }
-                    Button("folder_check") { folders.check(source.id) }
-                    Button("folder_backup_now") { Task { await folders.start(source.id) } }
-                    Button("folder_stop_preparing") { folders.pause(source.id) }
-                    Divider()
-                    Button("folder_remove", role: .destructive) { removing = source.id }
-                  } label: { Image(systemName: "ellipsis.circle") }.menuStyle(.borderlessButton).frame(width: 24)
-                }
-                Toggle("folder_automatic", isOn: Binding(get: { source.automatic }, set: { folders.setAutomatic(source.id, $0) }))
-                  .toggleStyle(.switch).controlSize(.small)
-              }.padding(18).background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+              FolderSourceCard(folders: folders, backup: backup, source: source,
+                open: { selection = source.id }, remove: { removing = source.id })
             }
             Text("folder_readonly_note").font(.caption).foregroundStyle(.secondary).padding(.top, 8)
           }
@@ -92,6 +58,102 @@ struct FolderSourcesPage: View {
     let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false
     panel.allowsMultipleSelection = false; panel.prompt = NSLocalizedString("folder_choose", comment: "")
     panel.begin { result in if result == .OK { adding = panel.url } }
+  }
+}
+private struct FolderSourceCard: View {
+  @ObservedObject var folders: FolderSources
+  @ObservedObject var backup: BackupModel
+  let source: FolderSource
+  let open: () -> Void
+  let remove: () -> Void
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      HStack(alignment: .top, spacing: 14) {
+        Image(systemName: "folder").font(.title2).foregroundStyle(.tint).frame(width: 30)
+        VStack(alignment: .leading, spacing: 6) {
+          Text(String(format: NSLocalizedString("folder_source_title", comment: ""), folders.displayName(source))).font(.headline).lineLimit(1)
+          Text(folders.displayPath(source)).font(.caption).foregroundStyle(.secondary)
+            .lineLimit(1).truncationMode(.middle).help(folders.displayPath(source))
+          Text(LocalizedStringKey(folders.phases[source.id] ?? "folder_scanning"))
+            .font(.callout).foregroundStyle(.secondary)
+          if let summary = folders.summaries[source.id] {
+            Text(String(format: NSLocalizedString("folder_count", comment: ""), summary.files,
+              ByteCountFormatter.string(fromByteCount: Int64(summary.bytes), countStyle: .file)))
+              .font(.caption).foregroundStyle(.secondary)
+            if summary.unsupported > 0 {
+              Text(String(format: NSLocalizedString("folder_unsupported", comment: ""), summary.unsupported))
+                .font(.caption).foregroundStyle(.secondary)
+            }
+          }
+          if !source.issues.isEmpty {
+            Button { open() } label: {
+              Text(String(format: NSLocalizedString("folder_issues", comment: ""), source.issues.count))
+            }.buttonStyle(.link).foregroundStyle(.orange)
+          }
+          if let checked = source.lastCheck {
+            Text(NSLocalizedString("folder_last_check", comment: "") + " " + checked.formatted(date: .abbreviated, time: .shortened))
+              .font(.caption).foregroundStyle(.secondary)
+          }
+        }.frame(maxWidth: .infinity, alignment: .leading)
+        Menu {
+          Button("folder_reveal") {
+            if let url = folders.sourceURL(source) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+          }
+          Divider()
+          Button("folder_remove", role: .destructive, action: remove)
+        } label: { Label("folder_more", systemImage: "ellipsis") }
+          .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+          .help("folder_more")
+      }
+      FolderSourceActions(folders: folders, backup: backup, source: source, open: open)
+      Divider()
+      HStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("folder_automatic").font(.callout)
+          Text("folder_automatic_hint").font(.caption).foregroundStyle(.secondary)
+        }
+        Spacer(minLength: 12)
+        Toggle("folder_automatic", isOn: Binding(get: { source.automatic },
+          set: { folders.setAutomatic(source.id, $0) }))
+          .labelsHidden().toggleStyle(.switch).controlSize(.small)
+      }
+    }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+      .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+  }
+}
+private struct FolderSourceActions: View {
+  @ObservedObject var folders: FolderSources
+  @ObservedObject var backup: BackupModel
+  let source: FolderSource
+  var open: (() -> Void)? = nil
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 12) { buttons }
+        VStack(alignment: .leading, spacing: 10) { buttons }
+      }
+      if let message = folders.actionMessages[source.id] {
+        Text(LocalizedStringKey(message)).font(.caption).foregroundStyle(.secondary)
+          .accessibilityIdentifier("folder.action_feedback")
+      }
+      if backup.pairing == nil { Text("folder_pair_first").font(.caption).foregroundStyle(.secondary) }
+    }
+  }
+  @ViewBuilder private var buttons: some View {
+    if let open {
+      Button(action: open) { Label("folder_open", systemImage: "folder") }
+    }
+    Button { folders.check(source.id, userInitiated: true) } label: {
+      Label("folder_check", systemImage: "arrow.clockwise")
+    }.disabled(!backup.ready || folders.starting.contains(source.id))
+    Button { Task { await folders.start(source.id) } } label: {
+      Label(folders.starting.contains(source.id) ? "folder_starting" : "folder_backup_now", systemImage: "arrow.up.circle")
+    }.disabled(!backup.ready || backup.pairing == nil || folders.starting.contains(source.id))
+    if source.enabled {
+      Button { folders.pause(source.id) } label: {
+        Label("folder_stop_preparing", systemImage: "pause.circle")
+      }.disabled(folders.starting.contains(source.id))
+    }
   }
 }
 private struct AddFolderSheet: View {
@@ -131,57 +193,108 @@ private struct FolderSourceDetail: View {
   @State private var loading = false
   @State private var error: String?
   @State private var visible = Set<String>()
+  @State private var showIssues = false
+  @AppStorage("macFolderListLayout") private var layout = "flat"
+  @StateObject private var tree = FolderTreeModel()
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       HStack {
         VStack(alignment: .leading, spacing: 6) {
-          Text(source.name).font(.title3.weight(.medium))
+          Text(folders.displayName(source)).font(.title3.weight(.medium))
+          Text(folders.displayPath(source)).font(.caption).foregroundStyle(.secondary)
+            .lineLimit(1).truncationMode(.middle)
           Text(LocalizedStringKey(folders.phases[source.id] ?? "folder_scanning")).foregroundStyle(.secondary)
         }
         Spacer()
-        Button("folder_check") { folders.check(source.id) }
-        Button("folder_backup_now") { Task { await folders.start(source.id) } }
       }
+      FolderSourceActions(folders: folders, backup: backup, source: source)
       if !source.issues.isEmpty {
-        DisclosureGroup("folder_issue_details") {
-          ForEach(source.issues.keys.sorted(), id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) }
+        Button { showIssues.toggle() } label: {
+          Label("folder_issue_details", systemImage: showIssues ? "chevron.down" : "chevron.right")
+        }.buttonStyle(.plain).accessibilityIdentifier("folder.issues")
+        if showIssues {
+          ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+              ForEach(source.issues.keys.sorted(), id: \.self) { path in
+                Text(path).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                  .truncationMode(.middle).help(path).textSelection(.enabled)
+                  .frame(maxWidth: .infinity, alignment: .leading)
+              }
+            }
+          }.frame(maxHeight: 140)
         }
       }
-      Text("folder_detail_note").font(.caption).foregroundStyle(.secondary)
+      HStack {
+        Text(layout == "folders" ? "folder_tree_note" : "folder_detail_note")
+          .font(.caption).foregroundStyle(.secondary)
+        Spacer()
+        Picker("folder_list_layout", selection: $layout) {
+          Text("folder_list_flat").tag("flat")
+          Text("folder_list_tree").tag("folders")
+        }.pickerStyle(.segmented).labelsHidden().frame(width: 180)
+      }
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 0) {
-          ForEach(entries) { entry in
-            HStack(spacing: 14) {
-              Image(systemName: entry.media_type.hasPrefix("video/") ? "video" : "photo")
-                .font(.title3).foregroundStyle(.secondary).frame(width: 28)
-              VStack(alignment: .leading, spacing: 5) {
-                Text((entry.relative as NSString).lastPathComponent).lineLimit(1)
-                Text(entry.relative).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-              }
-              Spacer()
-              Text(ByteCountFormatter.string(fromByteCount: Int64(entry.size), countStyle: .file))
-                .font(.caption).foregroundStyle(.secondary)
-              Image(systemName: taskSymbol(entry.state))
-                .foregroundStyle(entry.state == "received" ? .green : .secondary)
-                .help(LocalizedStringKey(entry.state.map { "state_" + $0 } ?? "folder_not_queued"))
-            }.padding(.vertical, 12)
-              .onAppear { visible.insert(entry.relative) }
-              .onDisappear { visible.remove(entry.relative) }
-            Divider()
+          if layout == "folders" {
+            ForEach(tree.rows) { row in
+              VStack(alignment: .leading, spacing: 0) {
+                if let child = row.child {
+                  if child.is_directory {
+                    Button {
+                      Task { await tree.toggle(child.relative, source: source.id, folders: folders) }
+                    } label: {
+                      HStack(spacing: 10) {
+                        Image(systemName: tree.expanded.contains(child.relative) ? "chevron.down" : "chevron.right").frame(width: 12)
+                        Image(systemName: "folder").foregroundStyle(.tint)
+                        Text((child.relative as NSString).lastPathComponent).lineLimit(1)
+                        Spacer()
+                      }.padding(.vertical, 12).contentShape(Rectangle())
+                    }.buttonStyle(.plain).help(child.relative)
+                  } else if let entry = child.entry {
+                    FolderFileRow(source: source, entry: entry, nested: true)
+                      .onAppear { visible.insert(entry.relative) }
+                      .onDisappear { visible.remove(entry.relative) }
+                  }
+                } else if tree.loading.contains(row.directory) {
+                  ProgressView().padding(.vertical, 12)
+                } else {
+                  if let message = tree.errors[row.directory] { Text(message).font(.caption).foregroundStyle(.orange) }
+                  Button(tree.errors[row.directory] == nil ? "folder_load_more" : "retry_task") {
+                    Task { await tree.load(row.directory, source: source.id, folders: folders) }
+                  }.padding(.vertical, 12)
+                }
+                Divider()
+              }.padding(.leading, CGFloat(min(row.depth, 10) * 18))
+            }
+            if tree.rows.isEmpty { Text("folder_empty").foregroundStyle(.secondary).padding(.vertical, 24) }
+          } else {
+            ForEach(entries) { entry in
+              FolderFileRow(source: source, entry: entry)
+                .onAppear { visible.insert(entry.relative) }
+                .onDisappear { visible.remove(entry.relative) }
+              Divider()
+            }
+            if more { Button("folder_load_more") { Task { await load() } }.padding(.vertical, 16).disabled(loading) }
+            if entries.isEmpty {
+              if loading { ProgressView().padding(.vertical, 24) }
+              else { Text("folder_empty").foregroundStyle(.secondary).padding(.vertical, 24) }
+            }
           }
-          if more { Button("folder_load_more") { Task { await load() } }.padding(.vertical, 16).disabled(loading) }
-          if entries.isEmpty { Text("folder_empty").foregroundStyle(.secondary).padding(.vertical, 24) }
         }
       }
       if let error { Text(error).foregroundStyle(.orange).font(.caption) }
     }
-    .task(id: "\(source.id)|\(folders.indexRevision)") { await reload() }
+    .task(id: "\(source.id)|\(folders.indexRevision)|\(layout)") {
+      if layout == "folders" { await tree.refresh(source: source.id, folders: folders) }
+      else { await reload() }
+    }
     .task(id: "\(folders.revision)|\(backup.queueRevision)|\(visible.sorted().joined(separator: "|"))") {
       try? await Task.sleep(nanoseconds: 150_000_000)
       guard !Task.isCancelled else { return }
       if let states = try? await folders.states(source.id, relatives: Array(visible.prefix(400))) {
         guard !Task.isCancelled else { return }
         for i in entries.indices where visible.contains(entries[i].relative) { entries[i].state = states[entries[i].relative] }
+        tree.apply(states, visible: visible)
       }
     }
   }
@@ -200,5 +313,114 @@ private struct FolderSourceDetail: View {
       }
       entries = result; more = result.count > 0 && result.count % 100 == 0
     } catch { self.error = error.localizedDescription }
+  }
+}
+
+struct FolderChild: Decodable, Identifiable {
+  let relative: String
+  let is_directory: Bool
+  var entry: FolderEntry?
+  var id: String { relative }
+}
+struct FolderChildren: Decodable {
+  var rows: [FolderChild]
+  let has_more: Bool
+}
+@MainActor private final class FolderTreeModel: ObservableObject {
+  struct Row: Identifiable {
+    let child: FolderChild?
+    let directory: String
+    let depth: Int
+    var id: String { child.map { "child:" + $0.relative } ?? "page:" + directory }
+  }
+  @Published var children: [String: [FolderChild]] = [:]
+  @Published var expanded = Set<String>()
+  @Published var more = Set<String>()
+  @Published var loading = Set<String>()
+  @Published var errors: [String: String] = [:]
+  private var generation = 0
+  var rows: [Row] {
+    var result: [Row] = []
+    func visit(_ directory: String, depth: Int) {
+      for child in children[directory] ?? [] {
+        result.append(Row(child: child, directory: directory, depth: depth))
+        if child.is_directory, expanded.contains(child.relative) { visit(child.relative, depth: depth + 1) }
+      }
+      if more.contains(directory) || loading.contains(directory) || errors[directory] != nil {
+        result.append(Row(child: nil, directory: directory, depth: depth))
+      }
+    }
+    visit("", depth: 0)
+    return result
+  }
+  func toggle(_ directory: String, source: String, folders: FolderSources) async {
+    if expanded.contains(directory) { expanded.remove(directory); return }
+    expanded.insert(directory)
+    if children[directory] == nil { await load(directory, source: source, folders: folders) }
+  }
+  func load(_ directory: String, source: String, folders: FolderSources) async {
+    guard !loading.contains(directory) else { return }
+    loading.insert(directory); errors[directory] = nil
+    let expected = generation
+    defer { if generation == expected { loading.remove(directory) } }
+    do {
+      let page = try await folders.children(source, directory: directory, offset: children[directory]?.count ?? 0)
+      guard generation == expected, !Task.isCancelled else { return }
+      children[directory, default: []].append(contentsOf: page.rows)
+      if page.has_more { more.insert(directory) } else { more.remove(directory) }
+    } catch {
+      if generation == expected, !Task.isCancelled { errors[directory] = error.localizedDescription }
+    }
+  }
+  func refresh(source: String, folders: FolderSources) async {
+    generation += 1
+    let expected = generation
+    loading.removeAll()
+    // Refresh only the root and directories that are currently expanded.
+    for directory in [""] + expanded.sorted() {
+      let limit = max(100, children[directory]?.count ?? 0)
+      children[directory] = nil; more.remove(directory); errors[directory] = nil
+      for _ in stride(from: 0, to: limit, by: 100) {
+        guard generation == expected, !Task.isCancelled else { return }
+        await load(directory, source: source, folders: folders)
+        if !more.contains(directory) { break }
+      }
+    }
+    // Cached closed directories must be queried again after an index change.
+    for directory in Array(children.keys) where !directory.isEmpty && !expanded.contains(directory) {
+      children[directory] = nil; more.remove(directory); errors[directory] = nil
+    }
+  }
+  func apply(_ states: [String: String], visible: Set<String>) {
+    for directory in Array(children.keys) {
+      guard var rows = children[directory] else { continue }
+      for index in rows.indices where visible.contains(rows[index].relative) {
+        let state = states[rows[index].relative]
+        rows[index].entry?.state = state
+      }
+      children[directory] = rows
+    }
+  }
+}
+
+private struct FolderFileRow: View {
+  let source: FolderSource
+  let entry: FolderEntry
+  var nested = false
+  var body: some View {
+    HStack(spacing: 14) {
+      MacFileThumbnail(source: source, relative: entry.relative, revision: entry.revision,
+        video: entry.media_type.hasPrefix("video/"), size: 44)
+      VStack(alignment: .leading, spacing: 5) {
+        Text((entry.relative as NSString).lastPathComponent).lineLimit(1).help(entry.relative)
+        if !nested { Text(entry.relative).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle) }
+      }
+      Spacer(minLength: 12)
+      Text(ByteCountFormatter.string(fromByteCount: Int64(entry.size), countStyle: .file))
+        .font(.caption).foregroundStyle(.secondary)
+      Image(systemName: taskSymbol(entry.state))
+        .foregroundStyle(entry.state == "received" ? .green : .secondary)
+        .help(LocalizedStringKey(entry.state.map { "state_" + $0 } ?? "folder_not_queued"))
+    }.padding(.vertical, 10)
   }
 }

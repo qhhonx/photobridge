@@ -419,9 +419,9 @@
 "folder_add" = "Add folder";
 "folder_choose" = "Choose folder";
 "folder_open" = "View files";
-"folder_check" = "Check for changes";
-"folder_backup_now" = "Back up existing files";
-"folder_stop_preparing" = "Pause new tasks";
+"folder_check" = "Check for file changes";
+"folder_backup_now" = "Back up all existing files";
+"folder_stop_preparing" = "Pause this source";
 "folder_remove" = "Remove source";
 "folder_remove_note" = "Stop checking this folder. Prepared tasks and received files remain. Source files are never deleted.";
 "folder_automatic" = "Automatically back up new and changed files";
@@ -454,3 +454,51 @@
 "task_source_filter" = "Source";
 "task_source_all" = "All sources";
 "folder_unsupported_media" = "This file could not be read as a supported photo or video.";
+
+"sidebar_tasks" = "Backup tasks";
+
+"folder_more" = "More";
+
+"folder_reveal" = "Show in Finder";
+
+"folder_automatic_hint" = "Detect new and changed photos and videos in this folder.";
+
+"folder_check_requested" = "Check scheduled; waiting for a scan. Backed-up files will not be sent again.";
+
+"folder_check_running" = "Checking for file changes…";
+
+"folder_check_finished" = "Check complete. New and changed files enter backup when this source is enabled.";
+
+"folder_starting" = "Scheduling backup…";
+
+"folder_backup_requested" = "Backup scheduled; checking and preparing files. Received files are skipped.";
+
+"folder_action_failed" = "The action failed. Review the error below and try again.";
+
+"folder_pause_explanation" = "This source has stopped adding new tasks. Files already queued will continue to transfer.";
+
+"folder_automatic_on" = "Automatic backup enabled.";
+
+"folder_automatic_off" = "Automatic checks disabled. Discovered files and queued transfers will continue.";
+
+"mac_nav_library" = "System photo library";
+
+"mac_nav_sources" = "Folder sources";
+
+"mac_nav_backup" = "Backup overview";
+
+"mac_sidebar_library" = "Sources";
+"folder_system_documents" = "Documents";
+"folder_system_desktop" = "Desktop";
+"folder_system_downloads" = "Downloads";
+"folder_system_pictures" = "Pictures";
+"folder_system_movies" = "Movies";
+"folder_system_music" = "Music";
+"folder_source_title" = "Folder: %@";
+"list_display_settings" = "List appearance";
+"list_thumbnails" = "Show photo and video thumbnails";
+"list_thumbnails_hint" = "For transfer and file lists. Only visible items load previews; turn off to show file-type icons and reduce disk reads and decoding.";
+"folder_list_layout" = "File list layout";
+"folder_list_flat" = "Flat";
+"folder_list_tree" = "Folders";
+"folder_tree_note" = "Folders and files are sorted by name and loaded on expansion, with separate pages per folder. Only indexed photos and videos are included.";

@@ -7,6 +7,7 @@ struct MacPreferences: View {
   @ObservedObject var model: BackupModel
   @AppStorage("macSettingsSection") private var section = MacSettingsSection.backup
   @State private var logs = false
+  @AppStorage("macListThumbnails") private var thumbnails = true
 
   var body: some View {
     TabView(selection: $section) {
@@ -31,6 +32,10 @@ struct MacPreferences: View {
         } header: { Text("backup_settings") }
         TransferConcurrencySettings(model: model)
         HistoricalImportSettings(model: model)
+        Section("list_display_settings") {
+          Toggle("list_thumbnails", isOn: $thumbnails)
+          Text("list_thumbnails_hint").foregroundStyle(.secondary)
+        }
         UpdateSettings()
         Section {
           Label("mac_running_note", systemImage: "desktopcomputer")

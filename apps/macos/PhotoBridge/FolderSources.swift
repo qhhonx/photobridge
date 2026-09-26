@@ -29,6 +29,8 @@ struct FolderSummary: Decodable {
   @Published var summaries: [String: FolderSummary] = [:]
   @Published var phases: [String: String] = [:]
   @Published var error: String?
+  @Published var actionMessages: [String: String] = [:]
+  @Published var starting = Set<String>()
   @Published var revision = 0
   @Published var indexRevision = 0
   private var watches: [String: FolderWatch] = [:]
@@ -86,7 +88,35 @@ struct FolderSummary: Decodable {
       automatic: automatic, enabled: existing || automatic, receiver: backup.pairing?.receiverID, lastCheck: nil, baselinePending: !existing)
     sources.append(source); check(source.id); save()
   }
-  func check(_ id: String) { dirty.insert(id); fullChecks.insert(id); debounce[id] = .distantPast }
+  func check(_ id: String, userInitiated: Bool = false) {
+    guard sources.contains(where: { $0.id == id }) else { return }
+    dirty.insert(id); fullChecks.insert(id); debounce[id] = .distantPast
+    if userInitiated { actionMessages[id] = "folder_check_requested"; error = nil }
+  }
+  func sourceURL(_ source: FolderSource) -> URL? {
+    var stale = false
+    return try? URL(resolvingBookmarkData: source.bookmark,
+      options: [.withSecurityScope, .withoutUI, .withoutMounting], relativeTo: nil,
+      bookmarkDataIsStale: &stale)
+  }
+  func displayName(_ source: FolderSource) -> String {
+    guard let url = sourceURL(source) else { return source.name }
+    let systemFolders: [(FileManager.SearchPathDirectory, String)] = [
+      (.documentDirectory, "folder_system_documents"), (.desktopDirectory, "folder_system_desktop"),
+      (.downloadsDirectory, "folder_system_downloads"), (.picturesDirectory, "folder_system_pictures"),
+      (.moviesDirectory, "folder_system_movies"), (.musicDirectory, "folder_system_music")
+    ]
+    for (directory, key) in systemFolders {
+      if FileManager.default.urls(for: directory, in: .userDomainMask).first?.standardizedFileURL == url.standardizedFileURL {
+        return NSLocalizedString(key, comment: "")
+      }
+    }
+    return FileManager.default.displayName(atPath: url.path)
+  }
+  func displayPath(_ source: FolderSource) -> String {
+    guard let url = sourceURL(source) else { return source.name }
+    return (url.path as NSString).abbreviatingWithTildeInPath
+  }
   func wake() {
     watches.removeAll()
     for (id, url) in access { url.stopAccessingSecurityScopedResource(); dirty.insert(id) }
@@ -97,25 +127,43 @@ struct FolderSummary: Decodable {
     guard let index = sources.firstIndex(where: { $0.id == id }) else { return }
     sources[index].automatic = value
     if value { sources[index].enabled = true; check(id) }
+    actionMessages[id] = value ? "folder_automatic_on" : "folder_automatic_off"
     save()
   }
   func start(_ id: String) async {
-    guard let i = sources.firstIndex(where: { $0.id == id }) else { return }
-    sources[i].enabled = true; sources[i].receiver = backup.pairing?.receiverID
-    sources[i].issues.removeAll(); sources[i].baselinePending = false;
-    _ = try? await call(["action": "include_existing", "source": id]);
-    _ = try? await call(["action": "retry_ignored", "source": id]); check(id); save()
-    if backup.pairing != nil { await backup.setPaused(false) }
+    guard !starting.contains(id), sources.contains(where: { $0.id == id }) else { return }
+    guard backup.ready, backup.pairing != nil else {
+      actionMessages[id] = "folder_pair_first"
+      return
+    }
+    starting.insert(id); actionMessages[id] = "folder_starting"; error = nil
+    defer { starting.remove(id) }
+    do {
+      _ = try await call(["action": "include_existing", "source": id])
+      _ = try await call(["action": "retry_ignored", "source": id])
+      guard let i = sources.firstIndex(where: { $0.id == id }) else { return }
+      sources[i].enabled = true; sources[i].receiver = backup.pairing?.receiverID
+      sources[i].issues.removeAll(); sources[i].baselinePending = false
+      check(id); save()
+      await backup.setPaused(false)
+      actionMessages[id] = backup.paused ? "backup_paused" : "folder_backup_requested"
+    } catch {
+      actionMessages[id] = "folder_action_failed"
+      self.error = error.localizedDescription
+    }
   }
   func pause(_ id: String) {
     guard let i = sources.firstIndex(where: { $0.id == id }) else { return }
-    sources[i].enabled = false; save()
+    sources[i].enabled = false
+    phases[id] = "folder_paused"; actionMessages[id] = "folder_pause_explanation"
+    save()
   }
   func remove(_ id: String) async {
     do {
       if scan == id { _ = try await call(["action": "cancel"]); scan = nil }
       if selectedSourceID == id { selectedSourceID = nil }
       sources.removeAll { $0.id == id }; dirty.remove(id); watches[id] = nil
+      actionMessages[id] = nil; summaries[id] = nil; phases[id] = nil
       access.removeValue(forKey: id)?.stopAccessingSecurityScopedResource()
       _ = try await call(["action": "forget", "source": id]); save(); revision += 1
     } catch { self.error = error.localizedDescription }
@@ -157,6 +205,9 @@ struct FolderSummary: Decodable {
           summaries[id] = summary
           if !summary.scanning {
             scan = nil; revision += 1; indexRevision += 1
+            if actionMessages[id] == "folder_check_requested" || actionMessages[id] == "folder_check_running" {
+              actionMessages[id] = "folder_check_finished"
+            }
             if let i = sources.firstIndex(where: { $0.id == id }) {
               sources[i].lastCheck = Date()
               if sources[i].baselinePending {
@@ -170,6 +221,7 @@ struct FolderSummary: Decodable {
         }
       } catch {
         phases[id] = "folder_scan_failed"; scan = nil; dirty.insert(id); debounce[id] = Date().addingTimeInterval(60)
+        if actionMessages[id] == "folder_check_running" { actionMessages[id] = "folder_scan_failed" }
       }
     }
     guard !sources.isEmpty else { return }
@@ -185,6 +237,7 @@ struct FolderSummary: Decodable {
           _ = try await call(["action": "begin", "source": source.id, "root": root.path, "directories": scopes])
           fullChecks.remove(source.id); changedFolders[source.id] = nil
           scan = source.id; dirty.remove(source.id); phases[source.id] = "folder_scanning"
+          if actionMessages[source.id] == "folder_check_requested" { actionMessages[source.id] = "folder_check_running" }
         }
       }
       if scan == source.id { return }
@@ -259,6 +312,13 @@ struct FolderSummary: Decodable {
   }
   func states(_ id: String, relatives: [String]) async throws -> [String: String] {
     try JSONDecoder().decode([String: String].self, from: await call(["action": "states", "source": id, "receiver": backup.pairing?.receiverID ?? "", "relatives": relatives]))
+  }
+  func children(_ id: String, directory: String, offset: Int) async throws -> FolderChildren {
+    try JSONDecoder().decode(FolderChildren.self, from: await call(["action": "children", "source": id,
+      "directory": directory, "offset": offset, "receiver": backup.pairing?.receiverID ?? ""]))
+  }
+  func previewEntry(_ id: String, job: Int64, sourceID: String) async throws -> FolderEntry? {
+    try JSONDecoder().decode(FolderEntry?.self, from: await call(["action": "preview_entry", "source": id, "job": job, "source_id": sourceID]))
   }
   func page(_ id: String, offset: Int) async throws -> [FolderEntry] {
     try JSONDecoder().decode([FolderEntry].self, from: await call(["action": "page", "source": id, "offset": offset, "receiver": backup.pairing?.receiverID ?? ""]))

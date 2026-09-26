@@ -22,19 +22,26 @@ Path('build/mac-layout-check/LayoutCheck.app/Contents/Info.plist').write_bytes(p
     'LSUIElement': True,
 }))
 PY
-MACOSX_DEPLOYMENT_TARGET=14.0 cargo build --locked --release --target aarch64-apple-darwin -p photobridge-native -j 2
+native_library="${PHOTOBRIDGE_LAYOUT_NATIVE_LIBRARY:-target/aarch64-apple-darwin/release/libphotobridge_native.a}"
+if [[ -z "${PHOTOBRIDGE_LAYOUT_NATIVE_LIBRARY:-}" ]]; then
+  MACOSX_DEPLOYMENT_TARGET=14.0 cargo build --locked --release --target aarch64-apple-darwin -p photobridge-native --features folder-source -j 2
+fi
+if [[ ! -d build/dependencies/sparkle/Sparkle.framework ]]; then ./scripts/fetch-sparkle.sh; fi
+mkdir -p "$app/Contents/Frameworks"
+ditto build/dependencies/sparkle/Sparkle.framework "$app/Contents/Frameworks/Sparkle.framework"
 cp -R apps/apple/Resources/*.lproj "$app/Contents/Resources/"
 sources=(apps/apple/Shared/*.swift)
 for file in apps/macos/PhotoBridge/*.swift; do
   if [[ "$file" != */PhotoBridgeMacApp.swift ]]; then sources+=("$file"); fi
 done
-xcrun --sdk macosx swiftc -swift-version 5 -O -module-cache-path build/SwiftModuleCache-mac \
+xcrun --sdk macosx swiftc -swift-version 5 -Onone -module-cache-path build/SwiftModuleCache-mac \
   -sdk "$(xcrun --sdk macosx --show-sdk-path)" -target arm64-apple-macos14.0 -parse-as-library \
+  -F build/dependencies/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
   -import-objc-header crates/native/include/photobridge.h \
   "${sources[@]}" "$work/PhotoBridgeMacApp.swift" tests/render_macos.swift \
-  target/aarch64-apple-darwin/release/libphotobridge_native.a \
+  "$native_library" \
   -framework Security -framework SystemConfiguration -framework AppKit -framework SwiftUI \
-  -framework Photos -framework Vision -lsqlite3 -lz -liconv -o "$app/Contents/MacOS/LayoutCheck"
+  -framework Photos -framework Vision -framework AVFoundation -framework QuickLookThumbnailing -framework ImageIO -framework CoreServices -lsqlite3 -lz -liconv -o "$app/Contents/MacOS/LayoutCheck"
 codesign --force --sign - "$app"
 for language in en zh-Hans; do
   "$app/Contents/MacOS/LayoutCheck" "$work/screenshots/$language" -AppleLanguages "($language)" "$@"

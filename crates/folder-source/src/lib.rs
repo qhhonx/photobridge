@@ -52,7 +52,8 @@ impl Index {
           CREATE INDEX IF NOT EXISTS folder_identity ON files(source,identity);
           CREATE INDEX IF NOT EXISTS folder_candidates ON files(source,present,modified);
           CREATE TABLE IF NOT EXISTS ignored(source TEXT NOT NULL,relative TEXT NOT NULL,revision TEXT NOT NULL,until_ms INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(source,relative));
-          CREATE TABLE IF NOT EXISTS submitted(source TEXT NOT NULL,identity TEXT NOT NULL,receiver TEXT NOT NULL,revision TEXT NOT NULL,job INTEGER NOT NULL,PRIMARY KEY(source,identity,receiver));").map_err(db)?;
+          CREATE TABLE IF NOT EXISTS submitted(source TEXT NOT NULL,identity TEXT NOT NULL,receiver TEXT NOT NULL,revision TEXT NOT NULL,job INTEGER NOT NULL,PRIMARY KEY(source,identity,receiver));
+          CREATE INDEX IF NOT EXISTS folder_job ON submitted(source,job);").map_err(db)?;
         Ok(Self { conn, scan: None })
     }
     pub fn begin(&mut self, source: &str, root: &Path, generation: u64) -> Result<()> {
@@ -491,5 +492,91 @@ impl Index {
             .execute("DELETE FROM submitted WHERE source=?1 AND job=0", [source])
             .map_err(db)?;
         Ok(())
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct Child {
+    pub relative: String,
+    pub is_directory: bool,
+    pub entry: Option<Entry>,
+}
+#[derive(Debug, Serialize)]
+pub struct Children {
+    pub rows: Vec<Child>,
+    pub has_more: bool,
+}
+impl Index {
+    /// Page immediate indexed children, not the filesystem or the complete tree.
+    pub fn children(
+        &self,
+        source: &str,
+        directory: &str,
+        offset: usize,
+        receiver: &str,
+    ) -> Result<Children> {
+        if !directory.is_empty()
+            && Path::new(directory)
+                .components()
+                .any(|c| !matches!(c, Component::Normal(_)))
+        {
+            return Err(Error::Invalid("folder directory".into()));
+        }
+        let prefix = if directory.is_empty() {
+            String::new()
+        } else {
+            format!("{directory}/")
+        };
+        // Every non-root prefix ends in '/', whose binary successor is '0'.
+        // This includes all valid Unicode names without a sentinel exclusion.
+        let upper = format!("{directory}0");
+        let range = if directory.is_empty() {
+            ""
+        } else {
+            "AND relative>=?2 AND relative<?3"
+        };
+        let sql = format!("WITH descendants AS (SELECT substr(relative,length(?2)+1) AS tail FROM files WHERE source=?1 AND present=1 {range}), children AS (SELECT CASE WHEN instr(tail,'/')=0 THEN tail ELSE substr(tail,1,instr(tail,'/')-1) END AS name, instr(tail,'/')>0 AS directory FROM descendants) SELECT name,MAX(directory) FROM children GROUP BY name ORDER BY MAX(directory) DESC,name COLLATE BINARY LIMIT 101 OFFSET ?4");
+        let mut statement = self.conn.prepare(&sql).map_err(db)?;
+        let names = statement
+            .query_map(params![source, prefix, upper, offset as i64], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, bool>(1)?))
+            })
+            .map_err(db)?
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(db)?;
+        let has_more = names.len() > 100;
+        let mut rows = Vec::new();
+        for (name, is_directory) in names.into_iter().take(100) {
+            let relative = format!("{prefix}{name}");
+            let entry = if is_directory {
+                None
+            } else {
+                let mut entry = self.entry(source, &relative)?;
+                entry.job_id = self.job_id(source, &relative, receiver)?;
+                Some(entry)
+            };
+            rows.push(Child {
+                relative,
+                is_directory,
+                entry,
+            });
+        }
+        Ok(Children { rows, has_more })
+    }
+    /// Resolve an existing task through its recorded identity, including renames.
+    pub fn preview_entry(&self, source: &str, job: i64, source_id: &str) -> Result<Option<Entry>> {
+        let mut statement = self.conn.prepare("SELECT MIN(f.relative),f.identity FROM submitted s JOIN files f ON f.source=s.source AND f.identity=s.identity WHERE s.source=?1 AND s.job=?2 AND f.present=1 GROUP BY f.identity").map_err(db)?;
+        let rows = statement
+            .query_map(params![source, job], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+            })
+            .map_err(db)?;
+        for row in rows {
+            let (relative, identity) = row.map_err(db)?;
+            if asset_id(source, &identity) == source_id {
+                return self.entry(source, &relative).map(Some);
+            }
+        }
+        Ok(None)
     }
 }

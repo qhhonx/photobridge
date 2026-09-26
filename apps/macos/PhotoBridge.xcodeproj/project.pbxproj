@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A14B0014A14B0014A14B0014 /* FileThumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14F0014A14F0014A14F0014 /* FileThumbnails.swift */; };
 		0AB8EADACB55C990A8321FB1 /* TransferViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AA28F647450C7799E24795F /* TransferViews.swift */; };
 		0DCAFF17FED817CEE7F4BB28 /* PhotoLibraryChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE14DA5643198D0ABD284089 /* PhotoLibraryChanges.swift */; };
 		1A91B3DDB0A4B9ABF224B455 /* LibraryPlaceholder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CE05DF93ED826373FA3A58E /* LibraryPlaceholder.swift */; };
@@ -56,6 +57,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A14F0014A14F0014A14F0014 /* FileThumbnails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileThumbnails.swift; sourceTree = "<group>"; };
 		0AD7FA80185F7B4B9B0B9E3B /* StorageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageModel.swift; sourceTree = "<group>"; };
 		0D3F36E2B33AE84B72D1C380 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		0D5C416643076444D9ACD762 /* PhotoLibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryModel.swift; sourceTree = "<group>"; };
@@ -171,6 +173,7 @@
 			children = (
 				0DB74B1883ECB58532009B3C /* AppUpdater.swift */,
 				E638C0A7733E140F254902CC /* FolderMedia.swift */,
+				A14F0014A14F0014A14F0014 /* FileThumbnails.swift */,
 				22602AAD2F638376F621CB6D /* FolderSources.swift */,
 				BA84441997CEB0B1CACEB5BA /* FolderSourcesPage.swift */,
 				E99DA5EB9D20302357745AF3 /* FolderWatch.swift */,
@@ -283,6 +286,7 @@
 				ED7131FDE605AB50C1449112 /* BurstPhotos.swift in Sources */,
 				C393F3E4F2AF5072DA520DCE /* DeviceIdentity.swift in Sources */,
 				E0B046A7B6A61C54F852B824 /* FolderMedia.swift in Sources */,
+				A14B0014A14B0014A14B0014 /* FileThumbnails.swift in Sources */,
 				9F34BE305601C4662643E771 /* FolderSources.swift in Sources */,
 				7C9E6D4B779B2124BAA320B2 /* FolderSourcesPage.swift in Sources */,
 				47920A40DF2B9D33EB26F79E /* FolderWatch.swift in Sources */,

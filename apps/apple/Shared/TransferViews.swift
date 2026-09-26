@@ -4,10 +4,20 @@ import SwiftUI
 struct AssetThumbnail: View {
   let sourceID: String
   var size: CGFloat = 56
+  #if os(macOS)
+    @AppStorage("macListThumbnails") private var enabled = true
+  #endif
   @State private var image: LibraryImage?
   @State private var request: PHImageRequestID = PHInvalidImageRequestID
   @State private var requestToken = UUID()
   private static let pipeline = ThumbnailPipeline()
+  private var requestKey: String {
+    #if os(macOS)
+      return "\(sourceID)|\(enabled)|\(size)"
+    #else
+      return "\(sourceID)|\(size)"
+    #endif
+  }
   var body: some View {
     ZStack {
       Rectangle().fill(.quaternary)
@@ -21,11 +31,14 @@ struct AssetThumbnail: View {
         Image(systemName: "photo").foregroundStyle(.secondary)
       }
     }.frame(width: size, height: size).clipped().clipShape(RoundedRectangle(cornerRadius: 8))
-      .task(id: sourceID) {
+      .task(id: requestKey) {
         Self.pipeline.cancel(request)
         image = nil
         requestToken = UUID()
         let token = requestToken
+        #if os(macOS)
+          guard enabled else { return }
+        #endif
         guard
           let asset = PHAsset.fetchAssets(withLocalIdentifiers: [sourceID], options: photoLibraryFetchOptions())
             .firstObject
@@ -58,7 +71,12 @@ struct TransferRow: View {
   var retry: () -> Void
   var body: some View {
     HStack(spacing: 14) {
-      AssetThumbnail(sourceID: job.asset.source_id)
+      #if os(macOS)
+        if job.asset.metadata?["source_type"] == "folder" { MacTransferThumbnail(job: job) }
+        else { AssetThumbnail(sourceID: job.asset.source_id) }
+      #else
+        AssetThumbnail(sourceID: job.asset.source_id)
+      #endif
       VStack(alignment: .leading, spacing: 7) {
         HStack {
           Text(job.asset.resources.first?.filename ?? "").lineLimit(1)

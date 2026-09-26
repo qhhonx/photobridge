@@ -54,6 +54,17 @@ pub enum Command {
         offset: usize,
         receiver: String,
     },
+    Children {
+        source: String,
+        directory: String,
+        offset: usize,
+        receiver: String,
+    },
+    PreviewEntry {
+        source: String,
+        job: i64,
+        source_id: String,
+    },
     Entry {
         source: String,
         relative: String,
@@ -193,6 +204,30 @@ pub fn call(command: Command) -> Result<Value> {
             }
             Ok(json!(rows))
         }
+        Command::Children {
+            source,
+            directory,
+            offset,
+            receiver,
+        } => {
+            let page = index.children(&source, &directory, offset, &receiver)?;
+            let mut value = serde_json::to_value(page)?;
+            for child in value["rows"].as_array_mut().unwrap() {
+                if let Some(id) = child["entry"]["job_id"].as_i64() {
+                    if let Ok(job) = host.sender.lock().map_err(lock)?.job(id) {
+                        child["entry"]["state"] = serde_json::to_value(job.state)?;
+                    }
+                }
+            }
+            Ok(value)
+        }
+        Command::PreviewEntry {
+            source,
+            job,
+            source_id,
+        } => Ok(serde_json::to_value(
+            index.preview_entry(&source, job, &source_id)?,
+        )?),
         Command::Entry { source, relative } => {
             Ok(serde_json::to_value(index.entry(&source, &relative)?)?)
         }

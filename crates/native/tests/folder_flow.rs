@@ -118,6 +118,22 @@ fn folder_motion_uses_existing_tls_queue_and_only_reclaims_owned_snapshots() {
             .unwrap()
             .all(|e| fs::read_dir(e.unwrap().path()).unwrap().next().is_none()));
     }
+    let children = folder(
+        json!({"action":"children","source":"source","directory":"","receiver":receiver,"offset":0}),
+    );
+    assert_eq!(children["has_more"], false);
+    assert_eq!(children["rows"].as_array().unwrap().len(), 2);
+    assert!(children["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|row| row["entry"]["state"] == "received"));
+    let preview = folder(
+        json!({"action":"preview_entry","source":"source","job":jobs[0]["id"],"source_id":photo.source_id}),
+    );
+    assert_eq!(preview["relative"], photo.relative);
+    assert_eq!(preview["source_id"], photo.source_id);
+    assert!(folder(json!({"action":"preview_entry","source":"other-source","job":jobs[0]["id"],"source_id":photo.source_id})).is_null());
     // Changing a source after its indexed revision cannot queue a stale snapshot.
     fs::write(source.join("original.jpg"), b"changed image").unwrap();
     let response = call(

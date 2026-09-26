@@ -19,7 +19,7 @@ xcrun --sdk macosx swiftc -swift-version 5 -O -module-cache-path build/SwiftModu
  -debug-prefix-map "$PWD=/photobridge" -F build/dependencies/sparkle -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
  -import-objc-header crates/native/include/photobridge.h \
  apps/apple/Shared/*.swift apps/macos/PhotoBridge/*.swift target/aarch64-apple-darwin/release/libphotobridge_native.a \
- -framework Security -framework SystemConfiguration -framework AVFoundation -framework ImageIO -framework CoreServices -framework AppKit -framework SwiftUI -framework Photos -framework Vision -lsqlite3 -lz -liconv \
+ -framework Security -framework SystemConfiguration -framework AVFoundation -framework QuickLookThumbnailing -framework ImageIO -framework CoreServices -framework AppKit -framework SwiftUI -framework Photos -framework Vision -lsqlite3 -lz -liconv \
  -o "$app/Contents/MacOS/PhotoBridge"
 # Keep a stable local development identity across builds. This optional file is
 # ignored by Git; release/CI builds may supply the environment variable instead.

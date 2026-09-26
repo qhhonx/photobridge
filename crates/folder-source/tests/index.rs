@@ -205,3 +205,156 @@ fn initial_baseline_is_independent_of_pairing_and_explicit_import_preserves_rece
     );
     assert_eq!(i.job_id("a", "new.jpg", "r").unwrap(), Some(8));
 }
+
+#[test]
+fn children_are_complete_scoped_and_independently_paginated() {
+    let t = Temp::new();
+    for folder in ["a_%", "a_X", "nested/deeper"] {
+        fs::create_dir_all(t.root().join(folder)).unwrap();
+    }
+    for n in 0..205 {
+        fs::write(t.root().join(format!("a_%/{n:03}.jpg")), b"image").unwrap();
+    }
+    fs::write(t.root().join("a_X/other.jpg"), b"image").unwrap();
+    fs::write(t.root().join("nested/deeper/video.mov"), b"video").unwrap();
+    fs::write(t.root().join("root.jpg"), b"image").unwrap();
+    let mut index = t.index();
+    scan(&mut index, "source", &t.root(), clock());
+    let root = index.children("source", "", 0, "r").unwrap();
+    assert_eq!(
+        root.rows
+            .iter()
+            .map(|c| c.relative.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a_%", "a_X", "nested", "root.jpg"]
+    );
+    assert!(!root.has_more);
+    assert!(root.rows[..3]
+        .iter()
+        .all(|c| c.is_directory && c.entry.is_none()));
+    let mut files = Vec::new();
+    for (offset, expected, more) in [(0, 100, true), (100, 100, true), (200, 5, false)] {
+        let page = index.children("source", "a_%", offset, "r").unwrap();
+        assert_eq!(page.rows.len(), expected);
+        assert_eq!(page.has_more, more);
+        files.extend(page.rows.into_iter().map(|c| c.relative));
+    }
+    files.sort();
+    files.dedup();
+    assert_eq!(files.len(), 205);
+    assert!(files.iter().all(|f| f.starts_with("a_%/")));
+    assert_eq!(
+        index.children("source", "nested", 0, "r").unwrap().rows[0].relative,
+        "nested/deeper"
+    );
+    assert!(index
+        .children("other-source", "", 0, "r")
+        .unwrap()
+        .rows
+        .is_empty());
+    assert!(index.children("source", "../a_%", 0, "r").is_err());
+    assert!(index.children("source", "/a_%", 0, "r").is_err());
+    fs::remove_file(t.root().join("root.jpg")).unwrap();
+    scan(&mut index, "source", &t.root(), clock() + 1);
+    assert!(index
+        .children("source", "", 0, "r")
+        .unwrap()
+        .rows
+        .iter()
+        .all(|c| c.relative != "root.jpg"));
+}
+
+#[test]
+fn preview_lookup_follows_identity_and_keeps_receipts_scoped() {
+    let t = Temp::new();
+    fs::write(t.root().join("nested/photo.jpg"), b"original").unwrap();
+    fs::write(t.root().join("A.MOV"), b"companion video").unwrap();
+    let mut index = t.index();
+    let now = clock();
+    scan(&mut index, "source", &t.root(), now);
+    let original = index.entry("source", "nested/photo.jpg").unwrap();
+    index
+        .mark("source", &original.relative, "r", &original.revision, 42)
+        .unwrap();
+    let child = index
+        .children("source", "nested", 0, "r")
+        .unwrap()
+        .rows
+        .remove(0);
+    assert_eq!(child.entry.unwrap().job_id, Some(42));
+    assert_eq!(
+        index
+            .children("source", "nested", 0, "other-receiver")
+            .unwrap()
+            .rows[0]
+            .entry
+            .as_ref()
+            .unwrap()
+            .job_id,
+        None
+    );
+    assert!(index
+        .preview_entry("other-source", 42, &original.source_id)
+        .unwrap()
+        .is_none());
+    assert!(index
+        .preview_entry("source", 99, &original.source_id)
+        .unwrap()
+        .is_none());
+    #[cfg(unix)]
+    {
+        fs::rename(
+            t.root().join("nested/photo.jpg"),
+            t.root().join("renamed.jpg"),
+        )
+        .unwrap();
+        scan(&mut index, "source", &t.root(), now + 1);
+        let preview = index
+            .preview_entry("source", 42, &original.source_id)
+            .unwrap()
+            .unwrap();
+        assert_eq!(preview.relative, "renamed.jpg");
+        assert_eq!(preview.source_id, original.source_id);
+        assert_eq!(preview.revision, original.revision);
+        fs::write(t.root().join("renamed.jpg"), b"different longer contents").unwrap();
+        scan(&mut index, "source", &t.root(), now + 2);
+        assert_ne!(
+            index
+                .preview_entry("source", 42, &original.source_id)
+                .unwrap()
+                .unwrap()
+                .revision,
+            original.revision
+        );
+        fs::remove_file(t.root().join("renamed.jpg")).unwrap();
+        scan(&mut index, "source", &t.root(), now + 3);
+        assert!(index
+            .preview_entry("source", 42, &original.source_id)
+            .unwrap()
+            .is_none());
+    }
+}
+
+#[test]
+fn root_folder_pagination_includes_directories_after_the_first_page() {
+    let t = Temp::new();
+    for n in 0..105 {
+        let folder = t.root().join(format!("folder-{n:03}"));
+        fs::create_dir_all(&folder).unwrap();
+        fs::write(folder.join("photo.jpg"), b"photo").unwrap();
+    }
+    let mut index = t.index();
+    scan(&mut index, "source", &t.root(), clock());
+    let first = index.children("source", "", 0, "r").unwrap();
+    let last = index.children("source", "", 100, "r").unwrap();
+    assert_eq!(first.rows.len(), 100);
+    assert!(first.has_more);
+    assert_eq!(last.rows.len(), 5);
+    assert!(!last.has_more);
+    assert_eq!(last.rows.last().unwrap().relative, "folder-104");
+    assert!(first
+        .rows
+        .iter()
+        .chain(&last.rows)
+        .all(|row| row.is_directory));
+}

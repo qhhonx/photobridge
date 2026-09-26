@@ -85,6 +85,113 @@ import SwiftUI
           peers: [DeviceSnapshot.Peer(key: paired.receiverID,
             profile: DeviceProfile(id: String(repeating: "a", count: 64), name: "Amber Otter"),
             last_seen: Int64(Date().timeIntervalSince1970))])
+        if CommandLine.arguments.contains("--folder-only") {
+          model.pairing = paired
+          let folder = store.appendingPathComponent("Documents")
+          try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+          let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 64, pixelsHigh: 48,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+          for x in 0..<64 { for y in 0..<48 { bitmap.setColor(x < 32 ? NSColor(deviceRed: 0.1, green: 0.4, blue: 0.9, alpha: 1) : NSColor(deviceRed: 1, green: 0.5, blue: 0.1, alpha: 1), atX: x, y: y) } }
+          let png = bitmap.representation(using: .png, properties: [:])!
+          try png.write(to: folder.appendingPathComponent("root-photo.png"))
+          try FileManager.default.createDirectory(at: folder.appendingPathComponent("Trip/Day 1"), withIntermediateDirectories: true)
+          for name in ["Trip/photo.png", "Trip/Day 1/photo.png"] { try png.write(to: folder.appendingPathComponent(name)) }
+          let bookmark = try folder.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil)
+          try FileManager.default.createDirectory(at: model.root, withIntermediateDirectories: true)
+          let folders = FolderSources(backup: model)
+          let source = FolderSource(id: "layout-folder", name: "Documents", bookmark: bookmark,
+            automatic: true, enabled: true, receiver: paired.receiverID, lastCheck: Date(),
+            issues: [String(repeating: "nested-folder/", count: 12) + "unreadable.jpg": "1"])
+          folders.sources = [source]
+          _ = try await Bridge.call(["op": "folder", "command": ["action": "begin", "source": source.id, "root": folder.path]])
+          while true {
+            let data = try await Bridge.call(["op": "folder", "command": ["action": "step"]])
+            if !(try JSONDecoder().decode(FolderSummary.self, from: data)).scanning { break }
+          }
+          let rootChildren = try await folders.children(source.id, directory: "", offset: 0)
+          precondition(rootChildren.rows.map(\.relative) == ["Trip", "root-photo.png"] && !rootChildren.has_more)
+          let tripChildren = try await folders.children(source.id, directory: "Trip", offset: 0)
+          precondition(tripChildren.rows.map(\.relative) == ["Trip/Day 1", "Trip/photo.png"])
+          let preview: NSImage? = await withCheckedContinuation { continuation in
+            FileThumbnailPipeline.shared.request(id: UUID(), source: source, relative: "root-photo.png", revision: "test", size: 56) {
+              continuation.resume(returning: $0)
+            }
+          }
+          precondition(preview != nil, "System thumbnail generation must succeed for a valid PNG")
+          try FileManager.default.createSymbolicLink(at: folder.appendingPathComponent("link.png"), withDestinationURL: folder.appendingPathComponent("root-photo.png"))
+          let linkedPreview: NSImage? = await withCheckedContinuation { continuation in
+            FileThumbnailPipeline.shared.request(id: UUID(), source: source, relative: "link.png", revision: "test", size: 56) {
+              continuation.resume(returning: $0)
+            }
+          }
+          precondition(linkedPreview == nil, "Previews must not follow file symlinks")
+          let systemDocument = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+          var localizedSource = source
+          localizedSource.bookmark = try systemDocument.bookmarkData(options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess], includingResourceValuesForKeys: nil, relativeTo: nil)
+          precondition(folders.displayName(localizedSource) == NSLocalizedString("folder_system_documents", comment: ""))
+          folders.summaries[source.id] = try JSONDecoder().decode(FolderSummary.self,
+            from: Data(#"{"files":152,"bytes":297061580,"unsupported":3925,"scanning":false}"#.utf8))
+          folders.phases[source.id] = "folder_attention"
+          folders.check(source.id, userInitiated: true)
+          precondition(folders.actionMessages[source.id] == "folder_check_requested")
+          folders.pause(source.id)
+          precondition(!folders.sources[0].enabled && folders.phases[source.id] == "folder_paused")
+          precondition(folders.actionMessages[source.id] == "folder_pause_explanation")
+          model.pairing = nil
+          await folders.start(source.id)
+          precondition(!folders.sources[0].enabled && folders.actionMessages[source.id] == "folder_pair_first")
+          model.pairing = paired
+          await folders.start(source.id)
+          precondition(folders.sources[0].enabled && folders.sources[0].issues.isEmpty && !model.paused)
+          precondition(folders.actionMessages[source.id] == "folder_backup_requested" && folders.starting.isEmpty)
+          await model.setPaused(true)
+          folders.sources = [source]
+          folders.pause(source.id)
+          // Persist fixture state for the workspace's normal folder-open path.
+          try FileManager.default.createDirectory(at: model.root, withIntermediateDirectories: true)
+          try JSONEncoder().encode(folders.sources).write(to: model.root.appendingPathComponent("folder-sources.json"))
+          folders.check(source.id, userInitiated: true)
+          if CommandLine.arguments.contains("--interactive-folder") {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1080, height: 740),
+              styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+            window.title = "PhotoBridge Folder Layout — Synthetic Data"
+            window.contentView = NSHostingView(rootView: MacWorkspace(model: model,
+              library: PhotoLibraryModel(), initialDestination: .sources, folderSources: folders))
+            interactiveWindow = window
+            window.center(); window.makeKeyAndOrderFront(nil)
+            app.activate(ignoringOtherApps: true)
+            print("Isolated folder fixture ready.")
+            return
+          }
+          for dark in [false, true] {
+            try await capture("folder-sources-" + (dark ? "dark" : "light"),
+              view: AnyView(FolderSourcesPage(folders: folders, backup: model, library: {})), output: output,
+              size: NSSize(width: 800, height: 680), dark: dark)
+          }
+          folders.selectedSourceID = source.id
+          UserDefaults.standard.set("flat", forKey: "macFolderListLayout")
+          UserDefaults.standard.set(true, forKey: "macListThumbnails")
+          try await capture("folder-thumbnail", view: AnyView(MacFileThumbnail(source: source,
+            relative: "root-photo.png", revision: "test", size: 100)), output: output, size: NSSize(width: 140, height: 140))
+          UserDefaults.standard.set(false, forKey: "macListThumbnails")
+          try await capture("folder-thumbnail-disabled", view: AnyView(MacFileThumbnail(source: source,
+            relative: "root-photo.png", revision: "test", size: 100)), output: output, size: NSSize(width: 140, height: 140))
+          UserDefaults.standard.set(true, forKey: "macListThumbnails")
+          try await capture("folder-detail", view: AnyView(FolderSourcesPage(folders: folders, backup: model, library: {})),
+            output: output, size: NSSize(width: 800, height: 680))
+          UserDefaults.standard.set("folders", forKey: "macFolderListLayout")
+          try await capture("folder-tree", view: AnyView(FolderSourcesPage(folders: folders, backup: model, library: {})),
+            output: output, size: NSSize(width: 800, height: 680))
+          UserDefaults.standard.set("flat", forKey: "macFolderListLayout")
+          folders.selectedSourceID = nil
+          try await capture("folder-workspace", view: AnyView(MacWorkspace(model: model,
+            library: PhotoLibraryModel(), initialDestination: .sources, folderSources: folders)),
+            output: output, size: NSSize(width: 1080, height: 740))
+          print("Folder action feedback, pause, directory queries and system thumbnails passed; rendered both layouts and thumbnail settings.")
+          app.terminate(nil)
+          return
+        }
         if CommandLine.arguments.contains("--interactive") {
           model.pairing = paired
           model.summary.total = 120
@@ -104,7 +211,7 @@ import SwiftUI
           print("Interactive fixture window ready. Store: \(store.path)")
           return
         }
-        let overview = { AnyView(MacBackupPage(model: model, pair: {}, library: {}, showTransfers: { _ in })) }
+        let overview = { AnyView(MacBackupPage(model: model, pair: {}, library: {}, sources: {}, showTransfers: { _ in })) }
         try await capture("backup-unpaired", view: overview(), output: output)
         model.pairing = paired
         try await capture("backup-empty", view: overview(), output: output)

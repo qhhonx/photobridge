@@ -419,9 +419,9 @@
 "folder_add" = "添加文件夹";
 "folder_choose" = "选择文件夹";
 "folder_open" = "查看文件";
-"folder_check" = "检查新增内容";
-"folder_backup_now" = "备份现有内容";
-"folder_stop_preparing" = "暂停准备新任务";
+"folder_check" = "检查文件变更";
+"folder_backup_now" = "备份全部现有文件";
+"folder_stop_preparing" = "暂停此来源";
 "folder_remove" = "移除来源";
 "folder_remove_note" = "停止检查此文件夹。已准备的传输任务和接收端文件会保留，不删除原文件。";
 "folder_automatic" = "自动备份新增及变更内容";
@@ -454,3 +454,51 @@
 "task_source_filter" = "来源";
 "task_source_all" = "所有来源";
 "folder_unsupported_media" = "此文件无法读取为支持的照片或视频。";
+
+"sidebar_tasks" = "备份任务";
+
+"folder_more" = "更多";
+
+"folder_reveal" = "在访达中显示";
+
+"folder_automatic_hint" = "检测此文件夹内新增和修改的照片、视频。";
+
+"folder_check_requested" = "已安排检查，正在等待扫描；检查不会重新传输已备份的文件。";
+
+"folder_check_running" = "正在检查文件变更…";
+
+"folder_check_finished" = "检查完成；新增或变更文件将在此来源启用时加入备份。";
+
+"folder_starting" = "正在安排备份…";
+
+"folder_backup_requested" = "已安排备份，正在检查和准备文件；已接收的文件会跳过。";
+
+"folder_action_failed" = "操作未完成，请查看下方错误并重试。";
+
+"folder_pause_explanation" = "此来源已暂停添加新任务；已加入队列的文件仍会传输。";
+
+"folder_automatic_on" = "已开启自动备份。";
+
+"folder_automatic_off" = "已关闭自动检查；已发现的文件和队列中的任务仍会继续。";
+
+"mac_nav_library" = "系统照片图库";
+
+"mac_nav_sources" = "文件夹来源";
+
+"mac_nav_backup" = "备份概览";
+
+"mac_sidebar_library" = "来源";
+"folder_system_documents" = "文稿";
+"folder_system_desktop" = "桌面";
+"folder_system_downloads" = "下载";
+"folder_system_pictures" = "图片";
+"folder_system_movies" = "影片";
+"folder_system_music" = "音乐";
+"folder_source_title" = "文件夹：%@";
+"list_display_settings" = "列表显示";
+"list_thumbnails" = "显示照片和视频缩略图";
+"list_thumbnails_hint" = "用于传输列表和文件列表。仅加载可见项；关闭后显示文件类型图标，减少磁盘读取和解码。";
+"folder_list_layout" = "文件列表显示方式";
+"folder_list_flat" = "平铺";
+"folder_list_tree" = "按文件夹";
+"folder_tree_note" = "按名称显示文件夹及文件。展开时加载，每个文件夹分别分页；仅包含已索引的照片和视频。";
